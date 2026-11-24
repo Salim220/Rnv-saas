@@ -84,30 +84,20 @@ async function ensureProfile(userId: string, email: string): Promise<Profile> {
   return data as Profile
 }
 
-export async function sendOtp(email: string): Promise<void> {
+export async function sendMagicLink(email: string): Promise<void> {
   const clean = email.trim().toLowerCase()
   if (!clean || !clean.includes('@')) throw new Error('Enter a valid e-mail address.')
   const { error } = await db().auth.signInWithOtp({
     email: clean,
-    options: { shouldCreateUser: true },
+    options: {
+      shouldCreateUser: true,
+      // Return to this exact app (works on localhost and GitHub Pages).
+      // Supabase appends ?token_hash=...&type=magiclink, which supabase-js
+      // exchanges in detectSessionInUrl (PKCE flow).
+      emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+    },
   })
   if (error) throw error
-}
-
-export async function verifyOtp(email: string, code: string): Promise<AuthUser> {
-  const clean = email.trim().toLowerCase()
-  const { data, error } = await db().auth.verifyOtp({
-    email: clean,
-    token: code.trim(),
-    type: 'email',
-  })
-  if (error) throw error
-  if (!data.user) throw new Error('Could not verify this code.')
-  return {
-    id: data.user.id,
-    email: data.user.email ?? clean,
-    profile: await ensureProfile(data.user.id, data.user.email ?? clean),
-  }
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {

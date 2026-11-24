@@ -12,6 +12,9 @@ export const supabase: SupabaseClient | null =
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
+          // Magic-link tokens arrive in the query string (token_hash), not in
+          // the URL fragment, so they don't collide with HashRouter.
+          flowType: 'pkce',
         },
       })
     : null

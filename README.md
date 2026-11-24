@@ -1,6 +1,6 @@
 # GiveFlow
 
-Application de dons pour particuliers : chaque personne a une page publique, reçoit des **demandes de soutien anonymes**, et suit chaque étape jusqu'au versement dans son dashboard. Connexion par **code OTP envoyé par e-mail**. Une console admin permet d'approuver les demandes, de marquer les versements comme effectués et de consulter les **coordonnées bancaires complètes** nécessaires aux virements manuels.
+Application de dons pour particuliers : chaque personne a une page publique, reçoit des **demandes de soutien anonymes**, et suit chaque étape jusqu'au versement dans son dashboard. Connexion par **lien magique envoyé par e-mail**. Une console admin permet d'approuver les demandes, de marquer les versements comme effectués et de consulter les **coordonnées bancaires complètes** nécessaires aux virements manuels.
 
 > Version finale : plus de mode démo, plus de PayPal ni de Dwolla, plus de code OTP affiché à l'écran. Le site est statique (GitHub Pages) mais utilise Supabase comme backend. Aucun nom, e-mail ou message de donateur n'est collecté. Aucun mot de passe n'est stocké.
 
@@ -9,13 +9,7 @@ Application de dons pour particuliers : chaque personne a une page publique, re�
 1. Crée un projet sur [supabase.com](https://supabase.com).
 2. Colle `supabase/schema.sql` dans **SQL Editor** et exécute. Si tu avais déjà appliqué un ancien schéma, exécute seulement `supabase/migration_manual_payouts.sql`.
 3. **Authentication → Providers → Email** : active le provider.
-4. **Authentication → Email Templates → Magic Link** : utilise ce modèle pour que l'utilisateur reçoive un code à 6 chiffres :
-
-   ```html
-   <p>Your GiveFlow sign-in code is:</p>
-   <h1>{{ .Token }}</h1>
-   <p>It expires in 1 hour. If you didn't ask for it, ignore this e-mail.</p>
-   ```
+4. **Authentication → Sign In / Providers → Email** : garde le template par défaut. Supabase envoie un **lien de connexion** (pas un code à 6 chiffres) : l'app utilise le flux *magic link* en PKCE, elle ramène automatiquement l'utilisateur sur `#/dashboard` après le clic. Aucun template personnalisé n'est nécessaire (et l'édition des templates est de toute façon réservée aux projets Pro / SMTP custom).
 
 5. Copie `.env.example` vers `.env.local` et renseigne `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`. La clé `anon` est publique par design : la sécurité vient des policies RLS de `schema.sql`.
 6. Les deux e-mails admin sont définis par `VITE_ADMIN_EMAILS` (valeur par défaut : `admin@giveflow.local,co-admin@giveflow.local`). Chaque admin a son propre compte OTP, aucun identifiant partagé. Les mêmes adresses sont inscrites dans la table `public.admin_emails` du SQL.
@@ -57,7 +51,7 @@ git push origin main
 | Page publique d'un receveur | `#/u/<handle>` |
 | Confirmation après demande | `#/thank-you` |
 
-1. Le receveur se connecte avec son e-mail, reçoit le code par e-mail et complète sa page.
+1. Le receveur saisit son e-mail, clique sur le lien reçu et complète sa page.
 2. Il renseigne ses **coordonnées bancaires** (titulaire, banque, routing number, numéro de compte, type) dans `#/dashboard`. Elles sont enregistrées dans `payout_accounts`.
 3. Un donneur ouvre `#/u/<handle>`, choisit un montant et envoie une demande **anonyme**. Aucun paiement en ligne n'est effectué.
 4. L'admin approuve ou refuse dans `#/admin` avec un motif, puis clique sur **Mark paid** après avoir fait le virement manuellement.
@@ -87,7 +81,7 @@ Les dons arrivent en `pending` et n'entrent dans les totaux qu'après approbatio
 
 | Sujet | État | Point d'attention |
 | --- | --- | --- |
-| OTP par e-mail | ✅ Supabase Auth | Configurer le template `{{ .Token }}` |
+| Connexion par e-mail | ✅ Supabase Auth, magic link PKCE | Le lien doit ramener sur l'URL du site (`emailRedirectTo`) |
 | Stockage des dons | ✅ anonyme, Supabase | Ajouter un rate limit anti-spam |
 | Console admin | ✅ verrou UI + RLS | `VITE_ADMIN_EMAILS` reste public dans le bundle, mais la RLS fait autorité |
 | Paiement en ligne | ❌ retiré | Les virements sont manuels |

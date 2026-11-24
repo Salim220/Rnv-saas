@@ -6,7 +6,7 @@ const steps = [
   {
     icon: Link2,
     title: 'Claim your page',
-    text: 'Sign in with a one-time code sent to your e-mail. No password to remember.',
+    text: 'Sign in with a link sent to your e-mail. No password to remember.',
   },
   {
     icon: Heart,
@@ -87,7 +87,7 @@ export function Landing() {
             </div>
             <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-slate-400">
               <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-500" /> Bank details visible only to admins</span>
-              <span className="flex items-center gap-2"><Heart size={16} className="text-brand-500" /> E-mail code sign-in</span>
+              <span className="flex items-center gap-2"><Heart size={16} className="text-brand-500" /> Passwordless e-mail sign-in</span>
             </div>
           </div>
 

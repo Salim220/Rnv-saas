@@ -1,5 +1,7 @@
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
+import { useUser } from './hooks/useUser'
 import { isSupabaseConfigured } from './lib/supabase'
 import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
@@ -19,6 +21,23 @@ function NotFound() {
   )
 }
 
+function MagicLinkRedirect() {
+  const { user } = useUser()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user) return
+    const hash = window.location.hash
+    // After clicking the e-mail link Supabase lands on the bare URL; send
+    // the user to their dashboard instead of leaving them on the landing page.
+    if (!hash || hash === '#' || hash.startsWith('#/signin')) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user, navigate])
+
+  return null
+}
+
 function SetupRequired() {
   return (
     <div className="mx-auto max-w-2xl px-5 py-20">
@@ -31,7 +50,7 @@ function SetupRequired() {
         </p>
         <ol className="mt-7 space-y-4 text-sm text-slate-600">
           <li><strong>1.</strong> Create a project on supabase.com and run <code className="rounded bg-slate-100 px-1.5 py-0.5">supabase/schema.sql</code> in its SQL editor.</li>
-          <li><strong>2.</strong> Enable the Email provider and use the Magic Link template with <code className="rounded bg-slate-100 px-1.5 py-0.5">{'{{ .Token }}'}</code>.</li>
+          <li><strong>2.</strong> Enable the Email provider. Supabase sends a sign-in link — no custom e-mail template is needed.</li>
           <li><strong>3.</strong> Add <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_SUPABASE_URL</code>, <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_SUPABASE_ANON_KEY</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_ADMIN_EMAILS</code> to the GitHub Actions secrets, then re-run the deploy workflow.</li>
         </ol>
         <p className="mt-7 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
@@ -47,6 +66,7 @@ export default function App() {
 
   return (
     <HashRouter>
+      <MagicLinkRedirect />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Landing />} />
