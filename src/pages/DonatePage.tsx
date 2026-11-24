@@ -69,8 +69,8 @@ export function DonatePage() {
     return (
       <div className="mx-auto max-w-xl px-5 py-24 text-center">
         <h1 className="text-3xl font-extrabold">This page isn't available</h1>
-        <p className="mt-3 text-slate-500">Check the link, or discover another supporter page.</p>
-        <Link to="/u/jane" className="primary-btn mt-8">See an example page</Link>
+        <p className="mt-3 text-slate-500">Check the link with the person who shared it with you.</p>
+        <Link to="/" className="primary-btn mt-8">Back to GiveFlow</Link>
       </div>
     )
   }
@@ -160,7 +160,7 @@ export function DonatePage() {
               Send support request · {formatMoney(effectiveCents || 0)}
             </button>
             <p className="flex items-center justify-center gap-2 text-center text-xs text-slate-400">
-              <LockKeyhole size={13} /> Prototype — no card is charged and no bank detail is requested here.
+              <LockKeyhole size={13} /> No payment is taken here — the administrator reviews and pays out manually.
             </p>
           </form>
         </section>

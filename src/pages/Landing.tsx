@@ -16,7 +16,7 @@ const steps = [
   {
     icon: Wallet,
     title: 'Get paid out',
-    text: 'Supporters pay by card or bank. Your payout lands in your connected account.',
+    text: 'An admin reviews each request and sends your transfer manually. You follow every step in your dashboard.',
   },
 ]
 
@@ -77,12 +77,16 @@ export function Landing() {
               <Link to="/signin" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 text-sm font-bold text-ink-950 transition hover:bg-brand-600">
                 Create your page <ArrowRight size={17} />
               </Link>
-              <Link to="/u/jane" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10">
-                See an example page
-              </Link>
+              <button
+                type="button"
+                onClick={() => document.getElementById('how')?.scrollIntoView({ behavior: 'instant', block: 'start' })}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                How it works
+              </button>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-slate-400">
-              <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-500" /> No bank details stored here</span>
+              <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-500" /> Bank details visible only to admins</span>
               <span className="flex items-center gap-2"><Heart size={16} className="text-brand-500" /> E-mail code sign-in</span>
             </div>
           </div>
@@ -114,7 +118,7 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-5 py-14 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-2xl font-extrabold">Ready to share your link?</h2>
-            <p className="mt-1 text-sm text-slate-500">Free prototype. No card required to try it.</p>
+            <p className="mt-1 text-sm text-slate-500">Free for supporters. No card is charged on this site.</p>
           </div>
           <Link to="/signin" className="primary-btn">
             Get started <ArrowRight size={16} />
@@ -123,7 +127,7 @@ export function Landing() {
       </section>
 
       <p className="mx-auto max-w-6xl px-5 py-8 text-xs leading-relaxed text-slate-400">
-        GiveFlow is a prototype. Donations to individuals are generally not tax-deductible in the United States. No money is moved in this demo.
+        GiveFlow coordinates support requests; transfers are sent manually by the administrator. Donations to individuals are generally not tax-deductible in the United States.
       </p>
     </>
   )

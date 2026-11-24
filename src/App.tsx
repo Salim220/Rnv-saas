@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
+import { isSupabaseConfigured } from './lib/supabase'
 import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { DonatePage } from './pages/DonatePage'
@@ -18,7 +19,32 @@ function NotFound() {
   )
 }
 
+function SetupRequired() {
+  return (
+    <div className="mx-auto max-w-2xl px-5 py-20">
+      <div className="card p-8 sm:p-10">
+        <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Configuration required</p>
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight">GiveFlow is not connected yet.</h1>
+        <p className="mt-4 text-sm leading-relaxed text-slate-600">
+          Demo mode has been removed. This site needs a Supabase project for e-mail OTP sign-in,
+          donation storage and the admin console.
+        </p>
+        <ol className="mt-7 space-y-4 text-sm text-slate-600">
+          <li><strong>1.</strong> Create a project on supabase.com and run <code className="rounded bg-slate-100 px-1.5 py-0.5">supabase/schema.sql</code> in its SQL editor.</li>
+          <li><strong>2.</strong> Enable the Email provider and use the Magic Link template with <code className="rounded bg-slate-100 px-1.5 py-0.5">{'{{ .Token }}'}</code>.</li>
+          <li><strong>3.</strong> Add <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_SUPABASE_URL</code>, <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_SUPABASE_ANON_KEY</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5">VITE_ADMIN_EMAILS</code> to the GitHub Actions secrets, then re-run the deploy workflow.</li>
+        </ol>
+        <p className="mt-7 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+          Until those secrets are set, links and sign-in cannot work. See README.md for the full procedure.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  if (!isSupabaseConfigured) return <SetupRequired />
+
   return (
     <HashRouter>
       <Routes>

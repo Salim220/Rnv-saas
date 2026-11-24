@@ -2,7 +2,6 @@ import { ArrowRight, Heart, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useUser } from '../hooks/useUser'
 import { isAdminEmail } from '../lib/admin'
-import { isSupabaseConfigured } from '../lib/supabase'
 import { signOut } from '../lib/data'
 import { Avatar } from './Avatar'
 
@@ -28,19 +27,14 @@ export function Layout() {
           </Link>
 
           <div className="flex items-center gap-3">
-            {!isSupabaseConfigured && (
-              <span className="hidden rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 sm:inline">
-                Demo mode
-              </span>
-            )}
             {user ? (
               <>
-                <Link to="/dashboard" className="hidden items-center gap-2 text-sm font-semibold text-slate-700 hover:text-ink-950 sm:inline-flex">
-                  <LayoutDashboard size={16} /> Dashboard
+                <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-ink-950 sm:text-sm">
+                  <LayoutDashboard size={16} /> <span className="hidden sm:inline">Dashboard</span>
                 </Link>
                 {isAdminEmail(user.email) && (
-                  <Link to="/admin" className="hidden items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 sm:inline-flex">
-                    <ShieldCheck size={16} /> Admin
+                  <Link to="/admin" className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 sm:text-sm">
+                    <ShieldCheck size={16} /> <span className="hidden sm:inline">Admin</span>
                   </Link>
                 )}
                 <Avatar name={user.profile.full_name || user.email} color={user.profile.avatar_color} size="sm" />
@@ -66,11 +60,11 @@ export function Layout() {
           <div className="flex items-center gap-2">
             <Heart size={15} className="text-brand-500" fill="currentColor" />
             <span className="font-semibold text-slate-700">GiveFlow</span>
-            <span>— a prototype, not a payment processor.</span>
+            <span>— support requests, reviewed and paid out manually.</span>
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} />
-            Only masked payout references are stored here.
+            Bank details are visible only in the admin console.
           </div>
         </div>
       </footer>

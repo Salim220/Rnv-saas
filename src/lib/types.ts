@@ -1,5 +1,6 @@
 export type PayoutMethod = 'none' | 'bank'
-export type DonationProvider = 'demo' | 'manual'
+export type AccountType = 'checking' | 'savings'
+export type DonationProvider = 'manual'
 export type DonationStatus = 'pending' | 'completed' | 'paid' | 'rejected' | 'failed'
 
 export interface Profile {
@@ -19,7 +20,9 @@ export interface PayoutAccount {
   recipient_id: string
   account_holder: string
   bank_name: string
-  account_reference: string
+  routing_number: string
+  account_number: string
+  account_type: AccountType
   note: string
   created_at: string
   updated_at: string

@@ -3,7 +3,6 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser } from '../hooks/useUser'
 import { sendOtp, verifyOtp } from '../lib/data'
-import { isSupabaseConfigured } from '../lib/supabase'
 
 export function SignIn() {
   const { user, refresh } = useUser()
@@ -11,7 +10,6 @@ export function SignIn() {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [demoCode, setDemoCode] = useState<string | undefined>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -20,8 +18,7 @@ export function SignIn() {
     setError('')
     setBusy(true)
     try {
-      const result = await sendOtp(email)
-      setDemoCode(result.demoCode)
+      await sendOtp(email)
       setStep('code')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send the code.')
@@ -78,12 +75,6 @@ export function SignIn() {
         </div>
 
         <div className="p-8">
-          {!isSupabaseConfigured && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
-              <strong>Demo mode:</strong> no e-mail is sent. {step === 'code' ? 'Your code is below.' : 'The code will appear on the next screen.'}
-            </div>
-          )}
-
           {step === 'email' ? (
             <form onSubmit={handleSend}>
               <label className="label" htmlFor="email">E-mail address</label>
@@ -98,24 +89,13 @@ export function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
               <button className="primary-btn mt-5 w-full" disabled={busy}>
                 {busy ? 'Sending…' : 'Send me a code'} <ArrowRight size={16} />
               </button>
             </form>
           ) : (
             <form onSubmit={handleVerify}>
-              {demoCode && (
-                <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-brand-500/30 bg-brand-500/5 px-4 py-3">
-                  <div>
-                    <p className="text-xs font-semibold text-brand-600">Demo code</p>
-                    <p className="font-mono text-xl font-bold tracking-[0.3em] text-ink-950">{demoCode}</p>
-                  </div>
-                  <button type="button" onClick={() => setCode(demoCode)} className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-brand-600 shadow-sm">
-                    Use it
-                  </button>
-                </div>
-              )}
-
               <label className="label" htmlFor="code">6-digit code</label>
               <input
                 id="code"
@@ -137,17 +117,15 @@ export function SignIn() {
               <button className="primary-btn mt-5 w-full" disabled={busy || code.length !== 6}>
                 {busy ? 'Verifying…' : 'Verify and continue'} <ArrowRight size={16} />
               </button>
-              <button type="button" onClick={() => { setStep('email'); setCode(''); setError(''); setDemoCode(undefined) }} className="mt-4 flex w-full items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800">
+              <button type="button" onClick={() => { setStep('email'); setCode(''); setError('') }} className="mt-4 flex w-full items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800">
                 <ArrowLeft size={15} /> Use a different e-mail
               </button>
             </form>
           )}
 
-          {step === 'email' && error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
-
           <div className="mt-8 flex items-start gap-2 border-t border-slate-100 pt-6 text-xs leading-relaxed text-slate-400">
             <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-            <span>We never ask for your bank details. Payout accounts are connected through the payment provider.</span>
+            <span>Your payout details are only visible to the two administrators. No password is ever requested.</span>
           </div>
         </div>
       </div>

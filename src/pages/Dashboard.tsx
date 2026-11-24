@@ -5,7 +5,7 @@ import { Avatar } from '../components/Avatar'
 import { useUser } from '../hooks/useUser'
 import { getDonations, getPayoutAccount, savePayoutAccount, updateProfile } from '../lib/data'
 import { formatMoney, pageUrl, timeAgo } from '../lib/format'
-import type { Donation, DonationStatus, PayoutMethod } from '../lib/types'
+import type { AccountType, Donation, DonationStatus, PayoutMethod } from '../lib/types'
 
 const COLORS = ['#8b7cff', '#22c55e', '#f97316', '#0ea5e9', '#ec4899', '#0f172a']
 
@@ -21,14 +21,18 @@ interface ProfileForm {
 interface PayoutForm {
   account_holder: string
   bank_name: string
-  account_reference: string
+  routing_number: string
+  account_number: string
+  account_type: AccountType
   note: string
 }
 
 const emptyPayout: PayoutForm = {
   account_holder: '',
   bank_name: '',
-  account_reference: '',
+  routing_number: '',
+  account_number: '',
+  account_type: 'checking',
   note: '',
 }
 
@@ -98,7 +102,9 @@ export function Dashboard() {
       .then((account) => setPayout(account ? {
         account_holder: account.account_holder,
         bank_name: account.bank_name,
-        account_reference: account.account_reference,
+        routing_number: account.routing_number,
+        account_number: account.account_number,
+        account_type: account.account_type,
         note: account.note,
       } : emptyPayout))
       .catch(() => setPayout(emptyPayout))
@@ -155,6 +161,10 @@ export function Dashboard() {
   async function handleSavePayout(event: FormEvent) {
     event.preventDefault()
     if (!user) return
+    if (payout.routing_number.replace(/\D/g, '').length !== 9) {
+      setError('Routing number must contain 9 digits.')
+      return
+    }
     setPayoutBusy(true)
     setError('')
     setPayoutSaved(false)
@@ -168,7 +178,7 @@ export function Dashboard() {
       setPayoutSaved(true)
       window.setTimeout(() => setPayoutSaved(false), 2500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save payout reference.')
+      setError(err instanceof Error ? err.message : 'Could not save bank details.')
     } finally {
       setPayoutBusy(false)
     }
@@ -216,9 +226,7 @@ export function Dashboard() {
                 {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              giveflow.com/u/<strong>{user.profile.handle}</strong> — share this anywhere.
-            </p>
+            <p className="mt-3 text-xs text-slate-500">This is your personal page — share the exact link above anywhere.</p>
           </section>
 
           <section className="card p-6">
@@ -273,13 +281,12 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Landmark size={18} className="text-brand-600" />
-                <h2 className="text-base font-bold">Payout reference (JSON)</h2>
+                <h2 className="text-base font-bold">Bank details (visible to admins)</h2>
               </div>
               {payoutSaved && <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600"><Check size={14} /> Saved</span>}
             </div>
             <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Store only a masked reference — for example the last 4 digits or a provider reference.
-              Full account numbers and passwords are never stored here, and the admin only sees this masked JSON.
+              These coordinates are used to send your transfer manually. They are shown only in the admin console and to you. No password is requested or stored.
             </p>
             <form onSubmit={handleSavePayout} className="mt-5 space-y-4">
               <div>
@@ -287,27 +294,53 @@ export function Dashboard() {
                 <input id="account_holder" className="input" placeholder="Jane Miller" value={payout.account_holder} onChange={(e) => setPayout({ ...payout, account_holder: e.target.value })} />
               </div>
               <div>
-                <label className="label" htmlFor="bank_name">Bank / provider</label>
+                <label className="label" htmlFor="bank_name">Bank name</label>
                 <input id="bank_name" className="input" placeholder="Chase" value={payout.bank_name} onChange={(e) => setPayout({ ...payout, bank_name: e.target.value })} />
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="routing_number">Routing number (ABA)</label>
+                  <input
+                    id="routing_number"
+                    className="input font-mono"
+                    inputMode="numeric"
+                    maxLength={9}
+                    placeholder="021000021"
+                    value={payout.routing_number}
+                    onChange={(e) => setPayout({ ...payout, routing_number: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="account_number">Account number</label>
+                  <input
+                    id="account_number"
+                    className="input font-mono"
+                    inputMode="numeric"
+                    maxLength={24}
+                    placeholder="000123456789"
+                    value={payout.account_number}
+                    onChange={(e) => setPayout({ ...payout, account_number: e.target.value.replace(/[^\dA-Za-z]/g, '').slice(0, 24) })}
+                  />
+                </div>
+              </div>
               <div>
-                <label className="label" htmlFor="account_reference">Masked reference</label>
-                <input
-                  id="account_reference"
+                <label className="label" htmlFor="account_type">Account type</label>
+                <select
+                  id="account_type"
                   className="input"
-                  placeholder="•••• 4242"
-                  maxLength={24}
-                  value={payout.account_reference}
-                  onChange={(e) => setPayout({ ...payout, account_reference: e.target.value })}
-                />
-                <p className="mt-1 text-[11px] text-slate-400">Do not enter a full account number or routing number.</p>
+                  value={payout.account_type}
+                  onChange={(e) => setPayout({ ...payout, account_type: e.target.value as AccountType })}
+                >
+                  <option value="checking">Checking</option>
+                  <option value="savings">Savings</option>
+                </select>
               </div>
               <div>
                 <label className="label" htmlFor="payout_note">Note <span className="font-normal text-slate-400">(optional)</span></label>
                 <input id="payout_note" className="input" placeholder="Checking account" value={payout.note} onChange={(e) => setPayout({ ...payout, note: e.target.value })} />
               </div>
               <button type="submit" className="primary-btn w-full" disabled={payoutBusy}>
-                <Save size={16} /> {payoutBusy ? 'Saving…' : 'Save payout reference'}
+                <Save size={16} /> {payoutBusy ? 'Saving…' : 'Save bank details'}
               </button>
             </form>
           </section>
