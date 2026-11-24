@@ -15,9 +15,6 @@ export function DonatePage() {
   const [loading, setLoading] = useState(true)
   const [amountCents, setAmountCents] = useState<number | 'custom'>(2500)
   const [customAmount, setCustomAmount] = useState('')
-  const [donorName, setDonorName] = useState('')
-  const [donorEmail, setDonorEmail] = useState('')
-  const [message, setMessage] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -43,8 +40,6 @@ export function DonatePage() {
       setError('Choose an amount between $1 and $10,000.')
       return
     }
-    if (!donorName.trim()) return setError('Please enter your name.')
-    if (!/^\S+@\S+\.\S+$/.test(donorEmail)) return setError('Please enter a valid e-mail address.')
     setConfirmOpen(true)
   }
 
@@ -55,10 +50,7 @@ export function DonatePage() {
     try {
       const donation = await createDonation({
         recipient_id: profile.id,
-        donor_name: donorName.trim(),
-        donor_email: donorEmail.trim().toLowerCase(),
         amount_cents: effectiveCents,
-        message: message.trim(),
         provider: 'paypal',
       })
       navigate('/thank-you', { state: { donation, recipient: profile } })
@@ -107,7 +99,7 @@ export function DonatePage() {
 
         <section className="card p-7">
           <h2 className="text-xl font-extrabold">Send support</h2>
-          <p className="mt-1 text-sm text-slate-500">Pick an amount and leave a note if you'd like.</p>
+          <p className="mt-1 text-sm text-slate-500">Pick an amount. No account and no personal details needed.</p>
 
           <form onSubmit={openConfirm} className="mt-6 space-y-5">
             <div>
@@ -149,17 +141,9 @@ export function DonatePage() {
               )}
             </div>
 
-            <div>
-              <label className="label" htmlFor="donorName">Your name</label>
-              <input id="donorName" className="input" placeholder="Alex Morgan" value={donorName} onChange={(e) => setDonorName(e.target.value)} />
-            </div>
-            <div>
-              <label className="label" htmlFor="donorEmail">Your e-mail</label>
-              <input id="donorEmail" type="email" className="input" placeholder="you@example.com" value={donorEmail} onChange={(e) => setDonorEmail(e.target.value)} />
-            </div>
-            <div>
-              <label className="label" htmlFor="message">Message <span className="font-normal text-slate-400">(optional)</span></label>
-              <textarea id="message" rows={3} maxLength={280} className="input resize-none" placeholder="A few encouraging words…" value={message} onChange={(e) => setMessage(e.target.value)} />
+            <div className="flex items-start gap-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
+              <ShieldCheck size={16} className="mt-0.5 shrink-0 text-brand-600" />
+              Your support is anonymous: no name, e-mail or bank details are collected.
             </div>
 
             <div>

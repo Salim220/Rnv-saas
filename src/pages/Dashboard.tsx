@@ -52,7 +52,10 @@ export function Dashboard() {
 
   const completed = donations.filter((d) => d.status === 'completed')
   const total = completed.reduce((sum, d) => sum + d.amount_cents, 0)
-  const supporters = new Set(completed.map((d) => d.donor_name.toLowerCase()).filter(Boolean)).size
+  const thirtyDaysAgo = Date.now() - 30 * 86_400_000
+  const thisMonth = completed
+    .filter((d) => new Date(d.created_at).getTime() >= thirtyDaysAgo)
+    .reduce((sum, d) => sum + d.amount_cents, 0)
   const link = pageUrl(user.profile.handle)
 
   async function copyLink() {
@@ -92,7 +95,7 @@ export function Dashboard() {
   const stats = [
     { label: 'Total raised', value: formatMoney(total), icon: Heart, accent: 'text-brand-600 bg-brand-500/10' },
     { label: 'Donations', value: String(completed.length), icon: ArrowUpRight, accent: 'text-sky-600 bg-sky-500/10' },
-    { label: 'Supporters', value: String(supporters), icon: Wallet, accent: 'text-emerald-600 bg-emerald-500/10' },
+    { label: 'Last 30 days', value: formatMoney(thisMonth), icon: Wallet, accent: 'text-emerald-600 bg-emerald-500/10' },
     { label: 'Average gift', value: formatMoney(completed.length ? Math.round(total / completed.length) : 0), icon: Heart, accent: 'text-amber-600 bg-amber-500/10' },
   ]
 
@@ -216,10 +219,9 @@ export function Dashboard() {
             <ul className="mt-5 divide-y divide-slate-100">
               {donations.slice(0, 12).map((donation) => (
                 <li key={donation.id} className="flex items-start gap-3 py-4">
-                  <Avatar name={donation.donor_name || 'Anonymous'} color="#e2e8f0" size="sm" />
+                  <Avatar name="Anonymous supporter" color="#e2e8f0" size="sm" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{donation.donor_name || 'Anonymous'}</p>
-                    {donation.message && <p className="mt-0.5 truncate text-xs text-slate-500">“{donation.message}”</p>}
+                    <p className="text-sm font-semibold">Anonymous supporter</p>
                     <p className="mt-1 text-xs text-slate-400">{timeAgo(donation.created_at)}</p>
                   </div>
                   <span className="shrink-0 text-sm font-bold text-emerald-600">{formatMoney(donation.amount_cents)}</span>

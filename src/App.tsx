@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
+import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { DonatePage } from './pages/DonatePage'
 import { Landing } from './pages/Landing'
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/u/:handle" element={<DonatePage />} />
           <Route path="/thank-you" element={<ThankYou />} />
           <Route path="/404" element={<NotFound />} />

@@ -18,10 +18,7 @@ create table if not exists public.profiles (
 create table if not exists public.donations (
   id uuid primary key default gen_random_uuid(),
   recipient_id uuid not null references public.profiles(id) on delete cascade,
-  donor_name text not null default '',
-  donor_email text not null default '',
   amount_cents integer not null check (amount_cents between 100 and 1000000),
-  message text not null default '',
   provider text not null default 'demo' check (provider in ('demo', 'paypal', 'dwolla')),
   status text not null default 'completed' check (status in ('completed', 'pending', 'failed')),
   created_at timestamptz not null default now()

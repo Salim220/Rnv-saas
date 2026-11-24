@@ -1,0 +1,297 @@
+import { Download, ExternalLink, Heart, Search, ShieldCheck, Users, Wallet, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, Navigate } from 'react-router-dom'
+import { Avatar } from '../components/Avatar'
+import { useUser } from '../hooks/useUser'
+import { ADMIN_EMAIL, isAdminEmail } from '../lib/admin'
+import { getAllDonations, getAllProfiles } from '../lib/data'
+import { formatMoney, pageUrl, timeAgo } from '../lib/format'
+import type { Donation, Profile } from '../lib/types'
+
+const payoutLabel: Record<Profile['payout_method'], string> = {
+  none: 'Not connected',
+  paypal: 'PayPal',
+  dwolla: 'Dwolla',
+}
+
+export function Admin() {
+  const { user, loading: userLoading } = useUser()
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [donations, setDonations] = useState<Donation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState<Profile | null>(null)
+
+  useEffect(() => {
+    Promise.all([getAllProfiles(), getAllDonations()])
+      .then(([allProfiles, allDonations]) => {
+        setProfiles(allProfiles)
+        setDonations(allDonations)
+      })
+      .catch(() => setError('Could not load admin data.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const totals = useMemo(() => {
+    const map = new Map<string, { total: number; count: number }>()
+    donations.forEach((donation) => {
+      if (donation.status !== 'completed') return
+      const current = map.get(donation.recipient_id) ?? { total: 0, count: 0 }
+      current.total += donation.amount_cents
+      current.count += 1
+      map.set(donation.recipient_id, current)
+    })
+    return map
+  }, [donations])
+
+  const filtered = profiles.filter((profile) =>
+    `${profile.full_name} ${profile.handle} ${profile.payout_email}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  )
+
+  const totalRaised = donations
+    .filter((d) => d.status === 'completed')
+    .reduce((sum, d) => sum + d.amount_cents, 0)
+  const connected = profiles.filter((p) => p.payout_method !== 'none').length
+
+  if (userLoading) {
+    return <div className="mx-auto max-w-6xl px-5 py-24 text-center text-sm text-slate-500">Loading…</div>
+  }
+  if (!user) return <Navigate to="/signin" replace />
+
+  if (!isAdminEmail(user.email)) {
+    return (
+      <div className="mx-auto max-w-xl px-5 py-24">
+        <div className="card p-9 text-center">
+          <ShieldCheck className="mx-auto text-rose-500" size={46} />
+          <h1 className="mt-5 text-2xl font-extrabold">Admin access required</h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-500">
+            You are signed in as <strong>{user.email}</strong>. The admin account is <strong>{ADMIN_EMAIL}</strong>.
+          </p>
+          <Link to="/dashboard" className="primary-btn mt-8">Back to dashboard</Link>
+        </div>
+      </div>
+    )
+  }
+
+  function exportCsv() {
+    const rows: string[][] = [
+      ['Handle', 'Name', 'Headline', 'Story', 'Payout method', 'Payout email', 'Total raised USD', 'Donations', 'Joined'],
+      ...profiles.map((p) => [
+        p.handle,
+        p.full_name,
+        p.headline,
+        p.story,
+        payoutLabel[p.payout_method],
+        p.payout_email,
+        ((totals.get(p.id)?.total ?? 0) / 100).toFixed(2),
+        String(totals.get(p.id)?.count ?? 0),
+        new Date(p.created_at).toLocaleDateString('en-US'),
+      ]),
+    ]
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'giveflow-recipients.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const kpis = [
+    { label: 'Total raised', value: formatMoney(totalRaised), icon: Heart, accent: 'text-brand-600 bg-brand-500/10' },
+    { label: 'Recipients', value: String(profiles.length), icon: Users, accent: 'text-sky-600 bg-sky-500/10' },
+    { label: 'Donations', value: String(donations.length), icon: Wallet, accent: 'text-emerald-600 bg-emerald-500/10' },
+    { label: 'Payout accounts', value: `${connected}/${profiles.length}`, icon: ShieldCheck, accent: 'text-amber-600 bg-amber-500/10' },
+  ]
+
+  return (
+    <div className="mx-auto max-w-6xl px-5 py-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-600">
+            <ShieldCheck size={15} /> Admin console
+          </div>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">All recipients & donations</h1>
+          <p className="mt-2 text-sm text-slate-500">Signed in as {user.email}</p>
+        </div>
+        <button onClick={exportCsv} className="ghost-btn">
+          <Download size={16} /> Export CSV
+        </button>
+      </div>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map(({ label, value, icon: Icon, accent }) => (
+          <div key={label} className="card p-5">
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${accent}`}><Icon size={18} /></div>
+            <p className="mt-5 text-2xl font-extrabold tracking-tight">{value}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="mt-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+
+      <section className="card mt-8 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-bold">People asking for support</h2>
+            <p className="mt-1 text-xs text-slate-500">Profiles, stories and payout details. Click a row for full details.</p>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input !py-2 pl-9 text-sm"
+              placeholder="Search name, handle, e-mail…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="p-8 text-center text-sm text-slate-500">Loading…</p>
+        ) : filtered.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-500">No recipient matches this search.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Person</th>
+                  <th className="px-5 py-3 font-semibold">Payout</th>
+                  <th className="px-5 py-3 text-right font-semibold">Raised</th>
+                  <th className="px-5 py-3 text-right font-semibold">Gifts</th>
+                  <th className="px-5 py-3 font-semibold">Joined</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((profile) => {
+                  const stats = totals.get(profile.id)
+                  return (
+                    <tr key={profile.id} className="cursor-pointer transition hover:bg-slate-50" onClick={() => setSelected(profile)}>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={profile.full_name} color={profile.avatar_color} size="sm" />
+                          <div>
+                            <p className="font-semibold">{profile.full_name || 'Unnamed'}</p>
+                            <p className="text-xs text-slate-500">@{profile.handle}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-medium">{payoutLabel[profile.payout_method]}</p>
+                        <p className="text-xs text-slate-500">{profile.payout_email || '—'}</p>
+                      </td>
+                      <td className="px-5 py-4 text-right font-bold text-emerald-600">{formatMoney(stats?.total ?? 0)}</td>
+                      <td className="px-5 py-4 text-right text-slate-600">{stats?.count ?? 0}</td>
+                      <td className="px-5 py-4 text-xs text-slate-500">{new Date(profile.created_at).toLocaleDateString('en-US')}</td>
+                      <td className="px-5 py-4 text-right"><ExternalLink size={15} className="text-slate-300" /></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card mt-8 overflow-hidden">
+        <div className="border-b border-slate-100 p-5">
+          <h2 className="text-base font-bold">All donations</h2>
+          <p className="mt-1 text-xs text-slate-500">Donors are anonymous — only the amount, recipient and date are stored.</p>
+        </div>
+        {loading ? (
+          <p className="p-8 text-center text-sm text-slate-500">Loading…</p>
+        ) : donations.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-500">No donations recorded yet.</p>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Recipient</th>
+                  <th className="px-5 py-3 font-semibold">Provider</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                  <th className="px-5 py-3 font-semibold">Date</th>
+                  <th className="px-5 py-3 text-right font-semibold">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {donations.map((donation) => {
+                  const recipient = profiles.find((p) => p.id === donation.recipient_id)
+                  return (
+                    <tr key={donation.id}>
+                      <td className="px-5 py-3 font-medium">@{recipient?.handle ?? 'deleted'}</td>
+                      <td className="px-5 py-3 text-slate-500">{donation.provider}</td>
+                      <td className="px-5 py-3"><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{donation.status}</span></td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{timeAgo(donation.created_at)}</td>
+                      <td className="px-5 py-3 text-right font-bold">{formatMoney(donation.amount_cents)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <p className="mt-6 text-xs leading-relaxed text-slate-400">
+        Prototype gate: access is based on the signed-in e-mail ({ADMIN_EMAIL}). In production, replace this with server-side authorization and Supabase RLS policies.
+      </p>
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-5 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-7 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar name={selected.full_name} color={selected.avatar_color} size="md" />
+                <div>
+                  <h3 className="text-lg font-extrabold">{selected.full_name || 'Unnamed'}</h3>
+                  <p className="text-xs text-slate-500">@{selected.handle}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelected(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">Raised</p>
+                <p className="mt-1 font-bold text-emerald-600">{formatMoney(totals.get(selected.id)?.total ?? 0)}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">Gifts</p>
+                <p className="mt-1 font-bold">{totals.get(selected.id)?.count ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">Joined</p>
+                <p className="mt-1 font-bold text-sm">{new Date(selected.created_at).toLocaleDateString('en-US')}</p>
+              </div>
+            </div>
+
+            <dl className="mt-6 space-y-4 text-sm">
+              <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Headline</dt><dd className="mt-1 text-slate-700">{selected.headline || '—'}</dd></div>
+              <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Story</dt><dd className="mt-1 whitespace-pre-line text-slate-700">{selected.story || '—'}</dd></div>
+              <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout method</dt><dd className="mt-1 text-slate-700">{payoutLabel[selected.payout_method]}</dd></div>
+              <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout e-mail</dt><dd className="mt-1 text-slate-700">{selected.payout_email || '—'}</dd></div>
+              <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Public page</dt><dd className="mt-1 break-all"><a className="text-brand-600 hover:underline" href={pageUrl(selected.handle)} target="_blank" rel="noreferrer">{pageUrl(selected.handle)}</a></dd></div>
+            </dl>
+
+            <h4 className="mt-7 text-sm font-bold">Their donations</h4>
+            <ul className="mt-2 divide-y divide-slate-100">
+              {donations.filter((d) => d.recipient_id === selected.id).map((d) => (
+                <li key={d.id} className="flex justify-between py-2.5 text-sm">
+                  <span className="text-slate-500">{timeAgo(d.created_at)}</span>
+                  <span className="font-bold text-emerald-600">{formatMoney(d.amount_cents)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -17,10 +17,7 @@ export interface Profile {
 export interface Donation {
   id: string
   recipient_id: string
-  donor_name: string
-  donor_email: string
   amount_cents: number
-  message: string
   provider: DonationProvider
   status: DonationStatus
   created_at: string
@@ -34,9 +31,6 @@ export interface AuthUser {
 
 export interface NewDonation {
   recipient_id: string
-  donor_name: string
-  donor_email: string
   amount_cents: number
-  message: string
   provider: DonationProvider
 }

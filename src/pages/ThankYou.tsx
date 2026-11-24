@@ -26,9 +26,6 @@ export function ThankYou() {
         <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
           Prototype mode: this was a sandbox simulation. No money was charged and no payout was created.
         </div>
-        {donation.message && (
-          <p className="mt-6 rounded-xl bg-slate-50 px-4 py-3 text-sm italic text-slate-600">“{donation.message}”</p>
-        )}
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link to={`/u/${recipient.handle}`} className="ghost-btn">
             <Link2 size={16} /> Back to the page

@@ -1,6 +1,7 @@
 import { ArrowRight, Heart, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useUser } from '../hooks/useUser'
+import { isAdminEmail } from '../lib/admin'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { signOut } from '../lib/data'
 import { Avatar } from './Avatar'
@@ -37,6 +38,11 @@ export function Layout() {
                 <Link to="/dashboard" className="hidden items-center gap-2 text-sm font-semibold text-slate-700 hover:text-ink-950 sm:inline-flex">
                   <LayoutDashboard size={16} /> Dashboard
                 </Link>
+                {isAdminEmail(user.email) && (
+                  <Link to="/admin" className="hidden items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 sm:inline-flex">
+                    <ShieldCheck size={16} /> Admin
+                  </Link>
+                )}
                 <Avatar name={user.profile.full_name || user.email} color={user.profile.avatar_color} size="sm" />
                 <button onClick={handleSignOut} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" title="Sign out">
                   <LogOut size={17} />

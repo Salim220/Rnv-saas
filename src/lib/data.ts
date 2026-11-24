@@ -1,7 +1,7 @@
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { AuthUser, Donation, NewDonation, Profile } from './types'
 
-const DEMO_KEY = 'giveflow.demo.v1'
+const DEMO_KEY = 'giveflow.demo.v2'
 
 interface DemoDb {
   profiles: Profile[]
@@ -38,20 +38,10 @@ function seedDb(): DemoDb {
     created_at: daysAgo(25),
   }
 
-  const donation = (
-    id: string,
-    recipient_id: string,
-    donor_name: string,
-    amount_cents: number,
-    message: string,
-    days: number,
-  ): Donation => ({
+  const donation = (id: string, recipient_id: string, amount_cents: number, days: number): Donation => ({
     id,
     recipient_id,
-    donor_name,
-    donor_email: '',
     amount_cents,
-    message,
     provider: 'demo',
     status: 'completed',
     created_at: daysAgo(days),
@@ -60,12 +50,12 @@ function seedDb(): DemoDb {
   return {
     profiles: [jane, marcus],
     donations: [
-      donation('d1', jane.id, 'Alex P.', 5000, 'Love your work!', 1),
-      donation('d2', jane.id, 'Sam R.', 2500, 'Keep going 💜', 3),
-      donation('d3', jane.id, 'Taylor K.', 10000, 'For the new tablet', 8),
-      donation('d4', jane.id, 'Chris M.', 1000, '', 14),
-      donation('d5', marcus.id, 'Dana W.', 7500, 'Go get that drill press!', 2),
-      donation('d6', marcus.id, 'Rob F.', 2500, 'Nice project.', 6),
+      donation('d1', jane.id, 5000, 1),
+      donation('d2', jane.id, 2500, 3),
+      donation('d3', jane.id, 10000, 8),
+      donation('d4', jane.id, 1000, 14),
+      donation('d5', marcus.id, 7500, 2),
+      donation('d6', marcus.id, 2500, 6),
     ],
     otps: {},
     sessionEmail: null,
@@ -345,4 +335,28 @@ export async function createDonation(input: NewDonation): Promise<Donation> {
   db.donations.unshift(donation)
   writeDemo(db)
   return donation
+}
+
+// Admin console — reads every profile and every donation.
+// Prototype only: in production this must be backed by server-side auth + RLS.
+export async function getAllProfiles(): Promise<Profile[]> {
+  if (supabase && isSupabaseConfigured) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+    return (data as Profile[]) ?? []
+  }
+  return [...readDemo().profiles].sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+export async function getAllDonations(): Promise<Donation[]> {
+  if (supabase && isSupabaseConfigured) {
+    const { data } = await supabase
+      .from('donations')
+      .select('*')
+      .order('created_at', { ascending: false })
+    return (data as Donation[]) ?? []
+  }
+  return [...readDemo().donations].sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
