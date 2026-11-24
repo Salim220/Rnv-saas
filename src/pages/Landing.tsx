@@ -46,7 +46,7 @@ function PreviewCard() {
           Support Jane
         </div>
         <div className="mt-5 flex items-center justify-center gap-2 text-xs text-slate-400">
-          <ShieldCheck size={14} /> Payments handled by PayPal
+          <ShieldCheck size={14} /> Reviewed by admin, paid out manually
         </div>
       </div>
     </div>

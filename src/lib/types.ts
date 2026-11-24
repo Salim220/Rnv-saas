@@ -1,6 +1,6 @@
-export type PayoutMethod = 'none' | 'paypal' | 'dwolla'
-export type DonationProvider = 'demo' | 'paypal' | 'dwolla'
-export type DonationStatus = 'pending' | 'completed' | 'rejected' | 'failed'
+export type PayoutMethod = 'none' | 'bank'
+export type DonationProvider = 'demo' | 'manual'
+export type DonationStatus = 'pending' | 'completed' | 'paid' | 'rejected' | 'failed'
 
 export interface Profile {
   id: string
@@ -12,6 +12,17 @@ export interface Profile {
   payout_method: PayoutMethod
   payout_email: string
   created_at: string
+}
+
+export interface PayoutAccount {
+  id: string
+  recipient_id: string
+  account_holder: string
+  bank_name: string
+  account_reference: string
+  note: string
+  created_at: string
+  updated_at: string
 }
 
 export interface Donation {
@@ -29,7 +40,12 @@ export interface AuthUser {
   profile: Profile
 }
 
-export type AdminActionType = 'approve' | 'reject' | 'view_profile' | 'request_sensitive_data'
+export type AdminActionType =
+  | 'approve'
+  | 'reject'
+  | 'mark_paid'
+  | 'view_profile'
+  | 'request_sensitive_data'
 
 export interface AdminAction {
   id: string

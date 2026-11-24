@@ -1,0 +1,22 @@
+[
+  {
+    "id": "pa1",
+    "recipient_id": "jane@demo.local",
+    "account_holder": "Jane Miller",
+    "bank_name": "Chase",
+    "account_reference": "•••• 4242",
+    "note": "Checking account",
+    "created_at": "2026-10-01T00:00:00.000Z",
+    "updated_at": "2026-11-22T00:00:00.000Z"
+  },
+  {
+    "id": "pa2",
+    "recipient_id": "marcus@demo.local",
+    "account_holder": "Marcus Reed",
+    "bank_name": "Bank of America",
+    "account_reference": "•••• 8871",
+    "note": "Checking account",
+    "created_at": "2026-10-10T00:00:00.000Z",
+    "updated_at": "2026-11-20T00:00:00.000Z"
+  }
+]

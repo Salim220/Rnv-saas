@@ -1,11 +1,11 @@
-import { ArrowUpRight, Check, Copy, ExternalLink, Heart, Save, Wallet } from 'lucide-react'
+import { ArrowUpRight, Check, Clock, Copy, ExternalLink, Heart, Landmark, Save, Wallet } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { useUser } from '../hooks/useUser'
-import { getDonations, updateProfile } from '../lib/data'
+import { getDonations, getPayoutAccount, savePayoutAccount, updateProfile } from '../lib/data'
 import { formatMoney, pageUrl, timeAgo } from '../lib/format'
-import type { Donation, PayoutMethod } from '../lib/types'
+import type { Donation, DonationStatus, PayoutMethod } from '../lib/types'
 
 const COLORS = ['#8b7cff', '#22c55e', '#f97316', '#0ea5e9', '#ec4899', '#0f172a']
 
@@ -18,18 +18,69 @@ interface ProfileForm {
   payout_email: string
 }
 
+interface PayoutForm {
+  account_holder: string
+  bank_name: string
+  account_reference: string
+  note: string
+}
+
+const emptyPayout: PayoutForm = {
+  account_holder: '',
+  bank_name: '',
+  account_reference: '',
+  note: '',
+}
+
+const trackingSteps = ['Requested', 'Reviewed', 'Paid out']
+
+function stepIndex(status: DonationStatus): number {
+  if (status === 'paid') return 2
+  if (status === 'completed') return 1
+  return 0
+}
+
+function statusLabel(status: DonationStatus): string {
+  if (status === 'paid') return 'Paid out'
+  if (status === 'completed') return 'Approved'
+  if (status === 'pending') return 'Awaiting review'
+  if (status === 'rejected') return 'Rejected'
+  return status
+}
+
+function statusClass(status: DonationStatus): string {
+  if (status === 'paid') return 'bg-emerald-50 text-emerald-700'
+  if (status === 'completed') return 'bg-sky-50 text-sky-700'
+  if (status === 'pending') return 'bg-amber-50 text-amber-700'
+  return 'bg-rose-50 text-rose-700'
+}
+
 export function Dashboard() {
   const { user, loading, refresh } = useUser()
   const [donations, setDonations] = useState<Donation[]>([])
   const [form, setForm] = useState<ProfileForm | null>(null)
+  const [payout, setPayout] = useState<PayoutForm>(emptyPayout)
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [payoutSaved, setPayoutSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [payoutBusy, setPayoutBusy] = useState(false)
   const [error, setError] = useState('')
   const initialized = useRef<string | null>(null)
 
   useEffect(() => {
-    if (user) getDonations(user.id).then(setDonations).catch(() => setDonations([]))
+    if (!user) return
+    const load = () => {
+      getDonations(user.id).then(setDonations).catch(() => setDonations([]))
+    }
+    load()
+    const onVisible = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(load, 15_000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(timer)
+    }
   }, [user?.id])
 
   useEffect(() => {
@@ -43,6 +94,14 @@ export function Dashboard() {
       payout_method: user.profile.payout_method,
       payout_email: user.profile.payout_email,
     })
+    getPayoutAccount(user.id)
+      .then((account) => setPayout(account ? {
+        account_holder: account.account_holder,
+        bank_name: account.bank_name,
+        account_reference: account.account_reference,
+        note: account.note,
+      } : emptyPayout))
+      .catch(() => setPayout(emptyPayout))
   }, [user])
 
   if (loading) {
@@ -50,12 +109,13 @@ export function Dashboard() {
   }
   if (!user) return <Navigate to="/signin" replace />
 
-  const completed = donations.filter((d) => d.status === 'completed')
-  const total = completed.reduce((sum, d) => sum + d.amount_cents, 0)
+  const counted = donations.filter((d) => d.status === 'completed' || d.status === 'paid')
+  const total = counted.reduce((sum, d) => sum + d.amount_cents, 0)
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000
-  const thisMonth = completed
+  const thisMonth = counted
     .filter((d) => new Date(d.created_at).getTime() >= thirtyDaysAgo)
     .reduce((sum, d) => sum + d.amount_cents, 0)
+  const pendingCount = donations.filter((d) => d.status === 'pending').length
   const link = pageUrl(user.profile.handle)
 
   async function copyLink() {
@@ -92,11 +152,33 @@ export function Dashboard() {
     }
   }
 
+  async function handleSavePayout(event: FormEvent) {
+    event.preventDefault()
+    if (!user) return
+    setPayoutBusy(true)
+    setError('')
+    setPayoutSaved(false)
+    try {
+      await savePayoutAccount(user.id, payout)
+      await updateProfile(user.id, {
+        payout_method: 'bank',
+        payout_email: form?.payout_email ?? user.profile.payout_email,
+      })
+      refresh()
+      setPayoutSaved(true)
+      window.setTimeout(() => setPayoutSaved(false), 2500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save payout reference.')
+    } finally {
+      setPayoutBusy(false)
+    }
+  }
+
   const stats = [
-    { label: 'Total raised', value: formatMoney(total), icon: Heart, accent: 'text-brand-600 bg-brand-500/10' },
-    { label: 'Donations', value: String(completed.length), icon: ArrowUpRight, accent: 'text-sky-600 bg-sky-500/10' },
+    { label: 'Approved support', value: formatMoney(total), icon: Heart, accent: 'text-brand-600 bg-brand-500/10' },
+    { label: 'Completed requests', value: String(counted.length), icon: ArrowUpRight, accent: 'text-sky-600 bg-sky-500/10' },
     { label: 'Last 30 days', value: formatMoney(thisMonth), icon: Wallet, accent: 'text-emerald-600 bg-emerald-500/10' },
-    { label: 'Average gift', value: formatMoney(completed.length ? Math.round(total / completed.length) : 0), icon: Heart, accent: 'text-amber-600 bg-amber-500/10' },
+    { label: 'Awaiting review', value: String(pendingCount), icon: Clock, accent: 'text-amber-600 bg-amber-500/10' },
   ]
 
   return (
@@ -135,7 +217,7 @@ export function Dashboard() {
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-             giveflow.com/u/<strong>{user.profile.handle}</strong> — share this anywhere.
+              giveflow.com/u/<strong>{user.profile.handle}</strong> — share this anywhere.
             </p>
           </section>
 
@@ -174,26 +256,9 @@ export function Dashboard() {
                   </div>
                 </div>
                 <div className="border-t border-slate-100 pt-5">
-                  <h3 className="text-sm font-bold">Payout account</h3>
-                  <p className="mt-1 text-xs text-slate-500">Your bank details go to the provider, never to GiveFlow.</p>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, payout_method: 'paypal' })}
-                      className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${form.payout_method === 'paypal' ? 'border-brand-500 bg-brand-500/5 text-brand-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      PayPal
-                    </button>
-                    <button type="button" disabled title="Requires a server-side integration" className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-400 opacity-60">
-                      Dwolla (soon)
-                    </button>
-                  </div>
-                  {form.payout_method === 'paypal' && (
-                    <div className="mt-4">
-                      <label className="label" htmlFor="payout_email">PayPal e-mail</label>
-                      <input id="payout_email" type="email" className="input" placeholder="you@example.com" value={form.payout_email} onChange={(e) => setForm({ ...form, payout_email: e.target.value })} />
-                    </div>
-                  )}
+                  <label className="label" htmlFor="payout_email">Contact e-mail for payout</label>
+                  <input id="payout_email" type="email" className="input" placeholder="you@example.com" value={form.payout_email} onChange={(e) => setForm({ ...form, payout_email: e.target.value })} />
+                  <p className="mt-2 text-xs text-slate-500">Used by the admin only to contact you about a payout.</p>
                 </div>
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
@@ -203,36 +268,108 @@ export function Dashboard() {
               </form>
             )}
           </section>
+
+          <section className="card p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Landmark size={18} className="text-brand-600" />
+                <h2 className="text-base font-bold">Payout reference (JSON)</h2>
+              </div>
+              {payoutSaved && <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600"><Check size={14} /> Saved</span>}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Store only a masked reference — for example the last 4 digits or a provider reference.
+              Full account numbers and passwords are never stored here, and the admin only sees this masked JSON.
+            </p>
+            <form onSubmit={handleSavePayout} className="mt-5 space-y-4">
+              <div>
+                <label className="label" htmlFor="account_holder">Account holder</label>
+                <input id="account_holder" className="input" placeholder="Jane Miller" value={payout.account_holder} onChange={(e) => setPayout({ ...payout, account_holder: e.target.value })} />
+              </div>
+              <div>
+                <label className="label" htmlFor="bank_name">Bank / provider</label>
+                <input id="bank_name" className="input" placeholder="Chase" value={payout.bank_name} onChange={(e) => setPayout({ ...payout, bank_name: e.target.value })} />
+              </div>
+              <div>
+                <label className="label" htmlFor="account_reference">Masked reference</label>
+                <input
+                  id="account_reference"
+                  className="input"
+                  placeholder="•••• 4242"
+                  maxLength={24}
+                  value={payout.account_reference}
+                  onChange={(e) => setPayout({ ...payout, account_reference: e.target.value })}
+                />
+                <p className="mt-1 text-[11px] text-slate-400">Do not enter a full account number or routing number.</p>
+              </div>
+              <div>
+                <label className="label" htmlFor="payout_note">Note <span className="font-normal text-slate-400">(optional)</span></label>
+                <input id="payout_note" className="input" placeholder="Checking account" value={payout.note} onChange={(e) => setPayout({ ...payout, note: e.target.value })} />
+              </div>
+              <button type="submit" className="primary-btn w-full" disabled={payoutBusy}>
+                <Save size={16} /> {payoutBusy ? 'Saving…' : 'Save payout reference'}
+              </button>
+            </form>
+          </section>
         </div>
 
         <section className="card h-fit p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold">Recent donations</h2>
+            <div>
+              <h2 className="text-base font-bold">Donation tracking</h2>
+              <p className="mt-1 text-xs text-slate-500">Updates automatically while this page is open.</p>
+            </div>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{donations.length} total</span>
           </div>
           {donations.length === 0 ? (
             <div className="py-16 text-center">
-              <Heart className="mx-auto text-slate-200" size={36} />
-              <p className="mt-3 text-sm text-slate-500">No donations yet. Share your link to get started.</p>
+              <Clock className="mx-auto text-slate-200" size={36} />
+              <p className="mt-3 text-sm text-slate-500">No requests yet. Share your link to get started.</p>
             </div>
           ) : (
-            <ul className="mt-5 divide-y divide-slate-100">
-              {donations.slice(0, 12).map((donation) => (
-                <li key={donation.id} className="flex items-start gap-3 py-4">
-                  <Avatar name="Anonymous supporter" color="#e2e8f0" size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">Anonymous supporter</p>
-                    <p className="mt-1 text-xs text-slate-400">{timeAgo(donation.created_at)}</p>
-                    {donation.status !== 'completed' && (
-                      <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${donation.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
-                        {donation.status === 'pending' ? 'Awaiting review' : donation.status}
-                      </span>
+            <ol className="mt-6 space-y-6">
+              {donations.map((donation) => {
+                const step = stepIndex(donation.status)
+                return (
+                  <li key={donation.id} className="rounded-xl border border-slate-100 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Avatar name="Anonymous supporter" color="#e2e8f0" size="sm" />
+                        <div>
+                          <p className="text-sm font-semibold">Anonymous supporter</p>
+                          <p className="text-xs text-slate-400">{timeAgo(donation.created_at)}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-extrabold text-emerald-600">{formatMoney(donation.amount_cents)}</p>
+                        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass(donation.status)}`}>
+                          {statusLabel(donation.status)}
+                        </span>
+                      </div>
+                    </div>
+                    {donation.status === 'rejected' ? (
+                      <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">This request was not approved.</p>
+                    ) : (
+                      <div className="relative mt-5 flex justify-between">
+                        <div className="absolute left-0 right-0 top-1.5 h-0.5 bg-slate-200" />
+                        <div
+                          className="absolute left-0 top-1.5 h-0.5 bg-brand-600 transition-all"
+                          style={{ width: `${(step / (trackingSteps.length - 1)) * 100}%` }}
+                        />
+                        {trackingSteps.map((label, index) => (
+                          <div key={label} className="relative z-10 flex flex-col items-center" style={{ width: 70 }}>
+                            <span className={`h-3 w-3 rounded-full ring-4 ring-white ${index <= step ? 'bg-brand-600' : 'bg-slate-200'}`} />
+                            <span className={`mt-1.5 text-center text-[10px] font-semibold ${index <= step ? 'text-brand-700' : 'text-slate-400'}`}>
+                              {label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  <span className="shrink-0 text-sm font-bold text-emerald-600">{formatMoney(donation.amount_cents)}</span>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                )
+              })}
+            </ol>
           )}
         </section>
       </div>

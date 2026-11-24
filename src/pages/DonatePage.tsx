@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Heart, LockKeyhole, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, Heart, LockKeyhole, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
@@ -43,7 +43,7 @@ export function DonatePage() {
     setConfirmOpen(true)
   }
 
-  async function confirmPayment() {
+  async function confirmRequest() {
     if (!profile) return
     setBusy(true)
     setError('')
@@ -51,7 +51,7 @@ export function DonatePage() {
       const donation = await createDonation({
         recipient_id: profile.id,
         amount_cents: effectiveCents,
-        provider: 'paypal',
+        provider: 'manual',
       })
       navigate('/thank-you', { state: { donation, recipient: profile } })
     } catch (err) {
@@ -146,29 +146,21 @@ export function DonatePage() {
               Your support is anonymous: no name, e-mail or bank details are collected.
             </div>
 
-            <div>
-              <span className="label">Payment method</span>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-xl border-2 border-brand-500 bg-brand-500/5 px-4 py-3">
-                  <span className="flex items-center gap-2 text-sm font-bold text-brand-600">
-                    <Check size={16} /> PayPal
-                  </span>
-                  <span className="text-xs font-semibold text-slate-400">Sandbox demo</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 opacity-60">
-                  <span className="text-sm font-semibold text-slate-500">Dwolla</span>
-                  <span className="text-xs text-slate-400">Requires server</span>
-                </div>
-              </div>
+            <div className="rounded-xl border border-brand-200 bg-brand-500/5 px-4 py-3 text-xs leading-relaxed text-slate-600">
+              <p className="font-bold text-brand-700">How this works</p>
+              <p className="mt-1">
+                No online payment is taken here. Your request is reviewed by an admin, then the
+                recipient is paid out manually and can follow every step in their dashboard.
+              </p>
             </div>
 
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-            <button className="w-full rounded-xl bg-[#003087] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#001e63]">
-              Continue with PayPal · {formatMoney(effectiveCents || 0)}
+            <button className="primary-btn w-full">
+              Send support request · {formatMoney(effectiveCents || 0)}
             </button>
             <p className="flex items-center justify-center gap-2 text-center text-xs text-slate-400">
-              <LockKeyhole size={13} /> Prototype — no real money is moved.
+              <LockKeyhole size={13} /> Prototype — no card is charged and no bank detail is requested here.
             </p>
           </form>
         </section>
@@ -178,19 +170,19 @@ export function DonatePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-5 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl">
             <div className="flex items-start justify-between">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#003087] text-white"><Heart size={20} fill="currentColor" /></div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-white"><Heart size={20} fill="currentColor" /></div>
               <button onClick={() => setConfirmOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
             </div>
-            <h3 className="mt-5 text-xl font-extrabold">Confirm sandbox payment</h3>
+            <h3 className="mt-5 text-xl font-extrabold">Confirm support request</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              This simulates a PayPal checkout. Nothing will be charged and no bank details are requested.
+              Nothing is charged. The request will appear in the recipient's tracking and in the admin console for review.
             </p>
             <div className="mt-5 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
               <span className="text-sm text-slate-500">Support for {profile.full_name.split(' ')[0]}</span>
               <span className="text-lg font-extrabold">{formatMoney(effectiveCents)}</span>
             </div>
-            <button className="mt-5 w-full rounded-xl bg-[#003087] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#001e63] disabled:opacity-50" onClick={confirmPayment} disabled={busy}>
-              {busy ? 'Confirming…' : `Confirm ${formatMoney(effectiveCents)}`}
+            <button className="primary-btn mt-5 w-full disabled:opacity-50" onClick={confirmRequest} disabled={busy}>
+              {busy ? 'Sending…' : `Send ${formatMoney(effectiveCents)} request`}
             </button>
             <button onClick={() => setConfirmOpen(false)} className="mt-3 w-full text-sm font-medium text-slate-500 hover:text-slate-800">Cancel</button>
           </div>

@@ -21,10 +21,10 @@ export function ThankYou() {
         <CheckCircle2 className="mx-auto text-emerald-500" size={56} />
         <h1 className="mt-6 text-3xl font-extrabold tracking-tight">Thank you!</h1>
         <p className="mt-3 text-slate-600">
-          Your support of <strong>{formatMoney(donation.amount_cents)}</strong> for <strong>{recipient.full_name}</strong> is now awaiting admin review.
+          Your support request of <strong>{formatMoney(donation.amount_cents)}</strong> for <strong>{recipient.full_name}</strong> is now awaiting admin review.
         </p>
         <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
-          Prototype mode: this was a sandbox simulation. No money was charged and no payout was created.
+          Prototype mode: no money was charged. The recipient will see this request in their tracking as soon as it is recorded.
         </div>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link to={`/u/${recipient.handle}`} className="ghost-btn">

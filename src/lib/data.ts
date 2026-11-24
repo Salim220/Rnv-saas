@@ -1,11 +1,20 @@
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { AdminAction, AuthUser, Donation, DonationStatus, NewDonation, Profile } from './types'
+import type {
+  AdminAction,
+  AuthUser,
+  Donation,
+  DonationStatus,
+  NewDonation,
+  PayoutAccount,
+  Profile,
+} from './types'
 
-const DEMO_KEY = 'giveflow.demo.v3'
+const DEMO_KEY = 'giveflow.demo.v4'
 
 interface DemoDb {
   profiles: Profile[]
   donations: Donation[]
+  payoutAccounts: PayoutAccount[]
   actions: AdminAction[]
   otps: Record<string, { code: string; expiresAt: number }>
   sessionEmail: string | null
@@ -22,7 +31,7 @@ function seedDb(): DemoDb {
     story:
       "Hi! I'm Jane, an illustrator in Austin. I'm saving up for a studio upgrade so I can take on more freelance work. Every little bit helps — thank you for being here.",
     avatar_color: '#8b7cff',
-    payout_method: 'paypal',
+    payout_method: 'bank',
     payout_email: 'jane@example.com',
     created_at: daysAgo(40),
   }
@@ -34,7 +43,7 @@ function seedDb(): DemoDb {
     story:
       "I'm fixing up my old garage workshop and would love a hand with the new tools. I'll share photos of the finished build!",
     avatar_color: '#22c55e',
-    payout_method: 'paypal',
+    payout_method: 'bank',
     payout_email: 'marcus@example.com',
     created_at: daysAgo(25),
   }
@@ -48,6 +57,24 @@ function seedDb(): DemoDb {
     created_at: daysAgo(days),
   })
 
+  const payoutAccount = (
+    id: string,
+    recipient_id: string,
+    account_holder: string,
+    bank_name: string,
+    account_reference: string,
+    days: number,
+  ): PayoutAccount => ({
+    id,
+    recipient_id,
+    account_holder,
+    bank_name,
+    account_reference,
+    note: 'Checking account',
+    created_at: daysAgo(days + 20),
+    updated_at: daysAgo(days),
+  })
+
   return {
     profiles: [jane, marcus],
     donations: [
@@ -57,6 +84,10 @@ function seedDb(): DemoDb {
       donation('d4', jane.id, 1000, 14),
       donation('d5', marcus.id, 7500, 2),
       donation('d6', marcus.id, 2500, 6),
+    ],
+    payoutAccounts: [
+      payoutAccount('pa1', jane.id, 'Jane Miller', 'Chase', '•••• 4242', 2),
+      payoutAccount('pa2', marcus.id, 'Marcus Reed', 'Bank of America', '•••• 8871', 4),
     ],
     otps: {},
     actions: [],
@@ -361,6 +392,82 @@ export async function getAllDonations(): Promise<Donation[]> {
     return (data as Donation[]) ?? []
   }
   return [...readDemo().donations].sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+// Payout references are masked on purpose: no full account number or password
+// is ever stored. Full details stay with the bank / payment provider.
+export async function getPayoutAccounts(): Promise<PayoutAccount[]> {
+  if (supabase && isSupabaseConfigured) {
+    const { data } = await supabase
+      .from('payout_accounts')
+      .select('*')
+      .order('updated_at', { ascending: false })
+    return (data as PayoutAccount[]) ?? []
+  }
+  return [...readDemo().payoutAccounts].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+}
+
+export async function getPayoutAccount(recipientId: string): Promise<PayoutAccount | null> {
+  const accounts = await getPayoutAccounts()
+  return accounts.find((account) => account.recipient_id === recipientId) ?? null
+}
+
+export type PayoutAccountInput = Pick<
+  PayoutAccount,
+  'account_holder' | 'bank_name' | 'account_reference' | 'note'
+>
+
+export async function savePayoutAccount(
+  recipientId: string,
+  input: PayoutAccountInput,
+): Promise<PayoutAccount> {
+  const now = new Date().toISOString()
+  const clean: PayoutAccountInput = {
+    account_holder: input.account_holder.trim(),
+    bank_name: input.bank_name.trim(),
+    account_reference: input.account_reference.trim(),
+    note: input.note.trim(),
+  }
+
+  if (supabase && isSupabaseConfigured) {
+    const { data: existing } = await supabase
+      .from('payout_accounts')
+      .select('id, created_at')
+      .eq('recipient_id', recipientId)
+      .maybeSingle()
+    const record = {
+      recipient_id: recipientId,
+      ...clean,
+      updated_at: now,
+    }
+    const { data, error } = existing
+      ? await supabase.from('payout_accounts').update(record).eq('id', existing.id).select().single()
+      : await supabase
+          .from('payout_accounts')
+          .insert({ ...record, id: crypto.randomUUID(), created_at: now })
+          .select()
+          .single()
+    if (error) throw error
+    return data as PayoutAccount
+  }
+
+  const db = readDemo()
+  const index = db.payoutAccounts.findIndex((account) => account.recipient_id === recipientId)
+  if (index >= 0) {
+    db.payoutAccounts[index] = { ...db.payoutAccounts[index], ...clean, updated_at: now }
+    writeDemo(db)
+    return db.payoutAccounts[index]
+  }
+  const created: PayoutAccount = {
+    id: crypto.randomUUID(),
+    recipient_id: recipientId,
+    ...clean,
+    created_at: now,
+    updated_at: now,
+  }
+  db.payoutAccounts.unshift(created)
+  writeDemo(db)
+  return created
 }
 
 export async function updateDonationStatus(id: string, status: DonationStatus): Promise<Donation> {

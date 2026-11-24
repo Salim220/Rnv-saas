@@ -70,7 +70,7 @@ export function Layout() {
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} />
-            Bank details are collected by PayPal, never stored here.
+            Only masked payout references are stored here.
           </div>
         </div>
       </footer>

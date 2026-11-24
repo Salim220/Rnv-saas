@@ -1,4 +1,4 @@
-import { Download, ExternalLink, Heart, Search, ShieldCheck, Users, Wallet, X } from 'lucide-react'
+import { Download, ExternalLink, Heart, Landmark, Search, ShieldCheck, Users, Wallet, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
@@ -8,26 +8,27 @@ import {
   getAllDonations,
   getAllProfiles,
   getAdminActions,
+  getPayoutAccounts,
   recordAdminAction,
   updateDonationStatus,
 } from '../lib/data'
 import { formatMoney, pageUrl, timeAgo } from '../lib/format'
-import type { AdminAction, Donation, Profile } from '../lib/types'
+import type { AdminAction, Donation, PayoutAccount, Profile } from '../lib/types'
 
 const payoutLabel: Record<Profile['payout_method'], string> = {
-  none: 'Not connected',
-  paypal: 'PayPal',
-  dwolla: 'Dwolla',
+  none: 'Not set',
+  bank: 'Bank transfer',
 }
 
 type ActionDialog =
-  | { kind: 'approve' | 'reject'; targetId: string; targetLabel: string }
+  | { kind: 'approve' | 'reject' | 'mark_paid'; targetId: string; targetLabel: string }
   | { kind: 'sensitive'; targetId: string; targetLabel: string }
 
 export function Admin() {
   const { user, loading: userLoading } = useUser()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [donations, setDonations] = useState<Donation[]>([])
+  const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([])
   const [actions, setActions] = useState<AdminAction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -38,10 +39,11 @@ export function Admin() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
-    Promise.all([getAllProfiles(), getAllDonations(), getAdminActions()])
-      .then(([allProfiles, allDonations, allActions]) => {
+    Promise.all([getAllProfiles(), getAllDonations(), getPayoutAccounts(), getAdminActions()])
+      .then(([allProfiles, allDonations, allAccounts, allActions]) => {
         setProfiles(allProfiles)
         setDonations(allDonations)
+        setPayoutAccounts(allAccounts)
         setActions(allActions)
       })
       .catch(() => setError('Could not load admin data.'))
@@ -51,7 +53,7 @@ export function Admin() {
   const totals = useMemo(() => {
     const map = new Map<string, { total: number; count: number }>()
     donations.forEach((donation) => {
-      if (donation.status !== 'completed') return
+      if (donation.status !== 'completed' && donation.status !== 'paid') return
       const current = map.get(donation.recipient_id) ?? { total: 0, count: 0 }
       current.total += donation.amount_cents
       current.count += 1
@@ -67,7 +69,10 @@ export function Admin() {
   )
 
   const totalRaised = donations
-    .filter((d) => d.status === 'completed')
+    .filter((d) => d.status === 'completed' || d.status === 'paid')
+    .reduce((sum, d) => sum + d.amount_cents, 0)
+  const paidOut = donations
+    .filter((d) => d.status === 'paid')
     .reduce((sum, d) => sum + d.amount_cents, 0)
   const pending = donations.filter((d) => d.status === 'pending').length
 
@@ -151,6 +156,36 @@ export function Admin() {
     setDialog({ kind: 'sensitive', targetId: profile.id, targetLabel: `@${profile.handle}` })
   }
 
+  function askMarkPaid(id: string) {
+    const donation = donations.find((d) => d.id === id)
+    const recipient = profiles.find((p) => p.id === donation?.recipient_id)
+    setNotice('')
+    setReason('')
+    setDialog({
+      kind: 'mark_paid',
+      targetId: id,
+      targetLabel: `@${recipient?.handle ?? 'unknown'} · ${formatMoney(donation?.amount_cents ?? 0)}`,
+    })
+  }
+
+  function downloadJson() {
+    const json = JSON.stringify(
+      {
+        exported_at: new Date().toISOString(),
+        warning: 'Masked references only. Full account numbers and passwords are never stored.',
+        payout_accounts: payoutAccounts,
+      },
+      null,
+      2,
+    )
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'giveflow-payout-accounts.json'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function confirmDialog() {
     if (!dialog) return
     const note = reason.trim()
@@ -174,12 +209,14 @@ export function Admin() {
           reason: note,
         })
         setActions((current) => [logged, ...current])
-        setNotice('Request logged. Full bank details must be consulted in the secure PayPal/Dwolla dashboard.')
+        setNotice('Request logged. Full bank details must be consulted through your secure banking channel.')
       } else {
-        const updated = await updateDonationStatus(
-          dialog.targetId,
-          dialog.kind === 'approve' ? 'completed' : 'rejected',
-        )
+        const nextStatus = dialog.kind === 'approve'
+          ? 'completed'
+          : dialog.kind === 'mark_paid'
+            ? 'paid'
+            : 'rejected'
+        const updated = await updateDonationStatus(dialog.targetId, nextStatus)
         setDonations((current) => current.map((d) => (d.id === dialog.targetId ? updated : d)))
         const logged = await recordAdminAction({
           admin_id: user!.id,
@@ -187,10 +224,11 @@ export function Admin() {
           action: dialog.kind,
           target_id: dialog.targetId,
           target_label: dialog.targetLabel,
-          reason: note || 'Approved without additional note',
+          reason: note || (dialog.kind === 'mark_paid' ? 'Payout completed outside GiveFlow' : 'Approved without additional note'),
         })
         setActions((current) => [logged, ...current])
-        setNotice(`Donation ${dialog.kind === 'approve' ? 'approved' : 'rejected'} and logged.`)
+        const verb = dialog.kind === 'approve' ? 'approved' : dialog.kind === 'mark_paid' ? 'marked as paid' : 'rejected'
+        setNotice(`Donation ${verb} and logged.`)
       }
       setDialog(null)
       setReason('')
@@ -332,7 +370,8 @@ export function Admin() {
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                           donation.status === 'pending' ? 'bg-amber-50 text-amber-700'
                             : donation.status === 'rejected' ? 'bg-rose-50 text-rose-700'
-                              : 'bg-emerald-50 text-emerald-700'
+                              : donation.status === 'paid' ? 'bg-emerald-700 text-white'
+                                : 'bg-sky-50 text-sky-700'
                         }`}>{donation.status}</span>
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500">{timeAgo(donation.created_at)}</td>
@@ -343,6 +382,8 @@ export function Admin() {
                             <button onClick={() => askDecision(donation.id, 'approve')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700">Approve</button>
                             <button onClick={() => askDecision(donation.id, 'reject')} className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Reject</button>
                           </div>
+                        ) : donation.status === 'completed' ? (
+                          <button onClick={() => askMarkPaid(donation.id)} className="rounded-lg bg-ink-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-ink-900">Mark paid</button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
@@ -353,6 +394,62 @@ export function Admin() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="card mt-8 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Landmark size={17} className="text-brand-600" />
+              <h2 className="text-base font-bold">Payout accounts (JSON)</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Masked references only — no full account number or password is stored. Paid out so far: <strong>{formatMoney(paidOut)}</strong>.
+            </p>
+          </div>
+          <button onClick={downloadJson} className="ghost-btn">
+            <Download size={16} /> Download JSON
+          </button>
+        </div>
+        {payoutAccounts.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-500">No payout reference submitted yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Recipient</th>
+                  <th className="px-5 py-3 font-semibold">Account holder</th>
+                  <th className="px-5 py-3 font-semibold">Bank / provider</th>
+                  <th className="px-5 py-3 font-semibold">Masked reference</th>
+                  <th className="px-5 py-3 font-semibold">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payoutAccounts.map((account) => {
+                  const recipient = profiles.find((p) => p.id === account.recipient_id)
+                  return (
+                    <tr key={account.id}>
+                      <td className="px-5 py-3 font-medium">@{recipient?.handle ?? 'deleted'}</td>
+                      <td className="px-5 py-3">{account.account_holder || '—'}</td>
+                      <td className="px-5 py-3">{account.bank_name || '—'}</td>
+                      <td className="px-5 py-3 font-mono text-xs">{account.account_reference || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{new Date(account.updated_at).toLocaleDateString('en-US')}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {payoutAccounts.length > 0 && (
+          <details className="border-t border-slate-100 bg-slate-950 px-5 py-4">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-300">View raw JSON (masked)</summary>
+            <pre className="mt-3 max-h-72 overflow-auto text-[11px] leading-relaxed text-emerald-300">
+{JSON.stringify(payoutAccounts, null, 2)}
+            </pre>
+          </details>
         )}
       </section>
 
@@ -392,7 +489,7 @@ export function Admin() {
       </section>
 
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        Admin accounts: {ADMIN_EMAILS.join(' · ')}. Full bank numbers and passwords are never stored here — payout details live with the payment provider. In production, replace this gate with server-side authorization and RLS policies.
+        Admin accounts: {ADMIN_EMAILS.join(' · ')}. Full bank numbers and passwords are never stored here — only masked references in the JSON above. In production, replace this gate with server-side authorization and RLS policies.
       </p>
 
       {selected && (
@@ -430,11 +527,21 @@ export function Admin() {
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout method</dt><dd className="mt-1 text-slate-700">{payoutLabel[selected.payout_method]}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout e-mail</dt><dd className="mt-1 text-slate-700">{selected.payout_email || '—'}</dd></div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full bank details</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout reference (masked)</dt>
                 <dd className="mt-1 text-slate-700">
-                  Held by the payment provider — never stored in GiveFlow.
+                  {(() => {
+                    const account = payoutAccounts.find((a) => a.recipient_id === selected.id)
+                    if (!account) return <span className="text-slate-400">Not submitted yet.</span>
+                    return (
+                      <span className="block space-y-0.5">
+                        <span className="block">{account.account_holder || '—'} · {account.bank_name || '—'}</span>
+                        <span className="block font-mono text-xs">{account.account_reference || '—'}</span>
+                        {account.note && <span className="block text-xs text-slate-500">{account.note}</span>}
+                      </span>
+                    )
+                  })()}
                   <button onClick={() => askSensitiveData(selected)} className="mt-2 block rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">
-                    Request details (logged)
+                    Request full details (logged)
                   </button>
                 </dd>
               </div>
@@ -460,7 +567,13 @@ export function Admin() {
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-extrabold">
-                  {dialog.kind === 'sensitive' ? 'Request payout details' : dialog.kind === 'approve' ? 'Approve donation' : 'Reject donation'}
+                  {dialog.kind === 'sensitive'
+                    ? 'Request payout details'
+                    : dialog.kind === 'approve'
+                      ? 'Approve donation'
+                      : dialog.kind === 'mark_paid'
+                        ? 'Mark as paid'
+                        : 'Reject donation'}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">{dialog.targetLabel}</p>
               </div>
@@ -468,7 +581,7 @@ export function Admin() {
             </div>
 
             <label className="label mt-6" htmlFor="adminReason">
-              Reason {dialog.kind === 'approve' ? '(optional)' : '(required)'}
+              Reason {dialog.kind === 'approve' || dialog.kind === 'mark_paid' ? '(optional)' : '(required)'}
             </label>
             <textarea
               id="adminReason"
@@ -477,10 +590,12 @@ export function Admin() {
               className="input resize-none"
               placeholder={
                 dialog.kind === 'sensitive'
-                  ? 'Why do you need full payout details from the payment provider?'
+                  ? 'Why do you need full payout details through your banking channel?'
                   : dialog.kind === 'reject'
                     ? 'Explain why this donation is being rejected…'
-                    : 'Add a note for the audit trail…'
+                    : dialog.kind === 'mark_paid'
+                      ? 'Payout reference or note (optional)…'
+                      : 'Add a note for the audit trail…'
               }
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -495,10 +610,18 @@ export function Admin() {
                     ? 'rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700'
                     : dialog.kind === 'sensitive'
                       ? 'rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700'
-                      : 'primary-btn'
+                      : dialog.kind === 'mark_paid'
+                        ? 'rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800'
+                        : 'primary-btn'
                 }
               >
-                {dialog.kind === 'sensitive' ? 'Log request' : dialog.kind === 'approve' ? 'Confirm approval' : 'Confirm rejection'}
+                {dialog.kind === 'sensitive'
+                  ? 'Log request'
+                  : dialog.kind === 'approve'
+                    ? 'Confirm approval'
+                    : dialog.kind === 'mark_paid'
+                      ? 'Confirm payout'
+                      : 'Confirm rejection'}
               </button>
             </div>
           </div>
