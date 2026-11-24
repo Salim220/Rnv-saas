@@ -4,7 +4,7 @@
 // boundary. A production admin needs server-side auth and RLS policies.
 const configured = import.meta.env.VITE_ADMIN_EMAILS as string | undefined
 
-export const ADMIN_EMAILS = (configured || 'admin@giveflow.local,co-admin@giveflow.local')
+export const ADMIN_EMAILS = (configured || 'ouorousalim2@gmail.com,co-admin@giveflow.local')
   .split(',')
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean)

@@ -12,7 +12,7 @@ Application de dons pour particuliers : chaque personne a une page publique, re�
 4. **Authentication → Sign In / Providers → Email** : garde le template par défaut. Supabase envoie un **lien de connexion** (pas un code à 6 chiffres) : l'app utilise le flux *magic link* en PKCE, elle ramène automatiquement l'utilisateur sur `#/dashboard` après le clic. Aucun template personnalisé n'est nécessaire (et l'édition des templates est de toute façon réservée aux projets Pro / SMTP custom).
 
 5. Copie `.env.example` vers `.env.local` et renseigne `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`. La clé `anon` est publique par design : la sécurité vient des policies RLS de `schema.sql`.
-6. Les deux e-mails admin sont définis par `VITE_ADMIN_EMAILS` (valeur par défaut : `admin@giveflow.local,co-admin@giveflow.local`). Chaque admin a son propre compte OTP, aucun identifiant partagé. Les mêmes adresses sont inscrites dans la table `public.admin_emails` du SQL.
+6. Les deux e-mails admin sont `ouorousalim2@gmail.com` et `co-admin@giveflow.local` (remplace le second quand tu le connais). Ils sont définis par `VITE_ADMIN_EMAILS` avec une valeur par défaut dans `src/lib/admin.ts`. Chaque admin a son propre lien de connexion, aucun identifiant partagé. Les mêmes adresses doivent être inscrites dans la table `public.admin_emails` du SQL.
 
 Sans ces variables, le site affiche un écran « Configuration required » au lieu d'un faux mode démo.
 
@@ -24,13 +24,14 @@ Le dépôt est déjà configuré : **https://github.com/Salim220/Rnv-saas**
 - Le workflow `.github/workflows/deploy.yml` construit et déploie à chaque push sur `main`.
 - Lien public : **https://salim220.github.io/Rnv-saas/**
 
-Ajoute dans **Settings → Secrets and variables → Actions** ces trois secrets :
+Ajoute dans **Settings → Secrets and variables → Actions** ces deux secrets :
 
 | Secret | Valeur |
 | --- | --- |
 | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | clé anon du projet |
-| `VITE_ADMIN_EMAILS` | `admin@giveflow.local,co-admin@giveflow.local` |
+
+Les e-mails admin sont publics par design : ils sont définis dans `src/lib/admin.ts` et n'ont pas besoin d'être un secret.
 
 Puis relance le workflow. Les URLs utilisent des hashes (`/#/u/<handle>`, `#/admin`) : c'est volontaire, cela évite les redirections serveur que GitHub Pages ne gère pas.
 
