@@ -17,23 +17,21 @@ Ouvre le lien affiché par Vite. Au premier lancement, le prototype est en **mod
 - les profils et les dons sont stockés dans le `localStorage` du navigateur ;
 - deux pages de démonstration existent : `#/u/jane` et `#/u/marcus`.
 
-## 2. Mettre en ligne sur GitHub Pages (gratuit)
+## 2. Déploiement GitHub Pages
 
-1. Crée un **repository public** sur GitHub (par exemple `giveflow`).
-2. Pousse ce dossier :
+Le dépôt est déjà configuré : **https://github.com/Salim220/Rnv-saas**
 
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial GiveFlow prototype"
-   git branch -M main
-   git remote add origin https://github.com/<TON_PSEUDO>/giveflow.git
-   git push -u origin main
-   ```
+- Pages est activé avec la source **GitHub Actions**.
+- Le workflow `.github/workflows/deploy.yml` construit et déploie à chaque push sur `main`.
+- Lien public : **https://salim220.github.io/Rnv-saas/**
 
-3. Dans le repo : **Settings → Pages → Build and deployment → Source : GitHub Actions**.
-4. Le workflow `.github/workflows/deploy.yml` construit et déploie automatiquement.
-5. Lien à partager : `https://<TON_PSEUDO>.github.io/giveflow/`
+Pour déployer une modification :
+
+```bash
+git add .
+git commit -m "Update prototype"
+git push origin main
+```
 
 Les URLs utilisent des hashes (`/#/u/jane`) : c'est volontaire, cela évite les redirections serveur que GitHub Pages ne gère pas.
 
