@@ -71,7 +71,7 @@ export function Landing() {
               <span className="text-brand-500">directly.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">
-              One page for your story. One link to share. Supporters pay securely and your payout goes straight to your bank account.
+              One page for your story. One link to share. Supporters send a request and you follow every step until the payout reaches your bank.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link to="/signin" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 text-sm font-bold text-ink-950 transition hover:bg-brand-600">
