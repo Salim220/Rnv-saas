@@ -1,11 +1,12 @@
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { AuthUser, Donation, NewDonation, Profile } from './types'
+import type { AdminAction, AuthUser, Donation, DonationStatus, NewDonation, Profile } from './types'
 
-const DEMO_KEY = 'giveflow.demo.v2'
+const DEMO_KEY = 'giveflow.demo.v3'
 
 interface DemoDb {
   profiles: Profile[]
   donations: Donation[]
+  actions: AdminAction[]
   otps: Record<string, { code: string; expiresAt: number }>
   sessionEmail: string | null
 }
@@ -58,6 +59,7 @@ function seedDb(): DemoDb {
       donation('d6', marcus.id, 2500, 6),
     ],
     otps: {},
+    actions: [],
     sessionEmail: null,
   }
 }
@@ -321,7 +323,7 @@ export async function createDonation(input: NewDonation): Promise<Donation> {
   const donation: Donation = {
     ...input,
     id: crypto.randomUUID(),
-    status: 'completed',
+    status: 'pending',
     created_at: new Date().toISOString(),
   }
 
@@ -359,4 +361,57 @@ export async function getAllDonations(): Promise<Donation[]> {
     return (data as Donation[]) ?? []
   }
   return [...readDemo().donations].sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+export async function updateDonationStatus(id: string, status: DonationStatus): Promise<Donation> {
+  if (supabase && isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from('donations')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data as Donation
+  }
+
+  const db = readDemo()
+  const index = db.donations.findIndex((d) => d.id === id)
+  if (index < 0) throw new Error('Donation not found.')
+  db.donations[index] = { ...db.donations[index], status }
+  writeDemo(db)
+  return db.donations[index]
+}
+
+export async function getAdminActions(): Promise<AdminAction[]> {
+  if (supabase && isSupabaseConfigured) {
+    const { data } = await supabase
+      .from('admin_actions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    return (data as AdminAction[]) ?? []
+  }
+  return [...readDemo().actions].sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+export async function recordAdminAction(
+  input: Omit<AdminAction, 'id' | 'created_at'>,
+): Promise<AdminAction> {
+  const action: AdminAction = {
+    ...input,
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+  }
+
+  if (supabase && isSupabaseConfigured) {
+    const { data, error } = await supabase.from('admin_actions').insert(action).select().single()
+    if (error) throw error
+    return data as AdminAction
+  }
+
+  const db = readDemo()
+  db.actions.unshift(action)
+  writeDemo(db)
+  return action
 }

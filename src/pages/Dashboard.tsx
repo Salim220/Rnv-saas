@@ -223,6 +223,11 @@ export function Dashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">Anonymous supporter</p>
                     <p className="mt-1 text-xs text-slate-400">{timeAgo(donation.created_at)}</p>
+                    {donation.status !== 'completed' && (
+                      <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${donation.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {donation.status === 'pending' ? 'Awaiting review' : donation.status}
+                      </span>
+                    )}
                   </div>
                   <span className="shrink-0 text-sm font-bold text-emerald-600">{formatMoney(donation.amount_cents)}</span>
                 </li>

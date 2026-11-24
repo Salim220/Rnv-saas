@@ -3,10 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { useUser } from '../hooks/useUser'
-import { ADMIN_EMAIL, isAdminEmail } from '../lib/admin'
-import { getAllDonations, getAllProfiles } from '../lib/data'
+import { ADMIN_EMAILS, isAdminEmail } from '../lib/admin'
+import {
+  getAllDonations,
+  getAllProfiles,
+  getAdminActions,
+  recordAdminAction,
+  updateDonationStatus,
+} from '../lib/data'
 import { formatMoney, pageUrl, timeAgo } from '../lib/format'
-import type { Donation, Profile } from '../lib/types'
+import type { AdminAction, Donation, Profile } from '../lib/types'
 
 const payoutLabel: Record<Profile['payout_method'], string> = {
   none: 'Not connected',
@@ -14,20 +20,29 @@ const payoutLabel: Record<Profile['payout_method'], string> = {
   dwolla: 'Dwolla',
 }
 
+type ActionDialog =
+  | { kind: 'approve' | 'reject'; targetId: string; targetLabel: string }
+  | { kind: 'sensitive'; targetId: string; targetLabel: string }
+
 export function Admin() {
   const { user, loading: userLoading } = useUser()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [donations, setDonations] = useState<Donation[]>([])
+  const [actions, setActions] = useState<AdminAction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Profile | null>(null)
+  const [dialog, setDialog] = useState<ActionDialog | null>(null)
+  const [reason, setReason] = useState('')
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
-    Promise.all([getAllProfiles(), getAllDonations()])
-      .then(([allProfiles, allDonations]) => {
+    Promise.all([getAllProfiles(), getAllDonations(), getAdminActions()])
+      .then(([allProfiles, allDonations, allActions]) => {
         setProfiles(allProfiles)
         setDonations(allDonations)
+        setActions(allActions)
       })
       .catch(() => setError('Could not load admin data.'))
       .finally(() => setLoading(false))
@@ -54,7 +69,7 @@ export function Admin() {
   const totalRaised = donations
     .filter((d) => d.status === 'completed')
     .reduce((sum, d) => sum + d.amount_cents, 0)
-  const connected = profiles.filter((p) => p.payout_method !== 'none').length
+  const pending = donations.filter((d) => d.status === 'pending').length
 
   if (userLoading) {
     return <div className="mx-auto max-w-6xl px-5 py-24 text-center text-sm text-slate-500">Loading…</div>
@@ -68,7 +83,8 @@ export function Admin() {
           <ShieldCheck className="mx-auto text-rose-500" size={46} />
           <h1 className="mt-5 text-2xl font-extrabold">Admin access required</h1>
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
-            You are signed in as <strong>{user.email}</strong>. The admin account is <strong>{ADMIN_EMAIL}</strong>.
+            You are signed in as <strong>{user.email}</strong>. Admin access is limited to:{' '}
+            {ADMIN_EMAILS.map((email) => <strong key={email} className="block">{email}</strong>)}.
           </p>
           <Link to="/dashboard" className="primary-btn mt-8">Back to dashboard</Link>
         </div>
@@ -100,11 +116,94 @@ export function Admin() {
     URL.revokeObjectURL(url)
   }
 
+  async function openProfile(profile: Profile) {
+    setSelected(profile)
+    try {
+      const logged = await recordAdminAction({
+        admin_id: user!.id,
+        admin_email: user!.email,
+        action: 'view_profile',
+        target_id: profile.id,
+        target_label: `@${profile.handle}`,
+        reason: 'Profile consultation',
+      })
+      setActions((current) => [logged, ...current])
+    } catch {
+      // The consultation still works if the audit write fails.
+    }
+  }
+
+  function askDecision(id: string, decision: 'approve' | 'reject') {
+    const donation = donations.find((d) => d.id === id)
+    const recipient = profiles.find((p) => p.id === donation?.recipient_id)
+    setNotice('')
+    setReason('')
+    setDialog({
+      kind: decision,
+      targetId: id,
+      targetLabel: `@${recipient?.handle ?? 'unknown'} · ${formatMoney(donation?.amount_cents ?? 0)}`,
+    })
+  }
+
+  function askSensitiveData(profile: Profile) {
+    setNotice('')
+    setReason('')
+    setDialog({ kind: 'sensitive', targetId: profile.id, targetLabel: `@${profile.handle}` })
+  }
+
+  async function confirmDialog() {
+    if (!dialog) return
+    const note = reason.trim()
+    if (dialog.kind === 'reject' && !note) {
+      setError('A reason is required to reject a donation.')
+      return
+    }
+    if (dialog.kind === 'sensitive' && !note) {
+      setError('A reason is required to request payout details.')
+      return
+    }
+    setError('')
+    try {
+      if (dialog.kind === 'sensitive') {
+        const logged = await recordAdminAction({
+          admin_id: user!.id,
+          admin_email: user!.email,
+          action: 'request_sensitive_data',
+          target_id: dialog.targetId,
+          target_label: dialog.targetLabel,
+          reason: note,
+        })
+        setActions((current) => [logged, ...current])
+        setNotice('Request logged. Full bank details must be consulted in the secure PayPal/Dwolla dashboard.')
+      } else {
+        const updated = await updateDonationStatus(
+          dialog.targetId,
+          dialog.kind === 'approve' ? 'completed' : 'rejected',
+        )
+        setDonations((current) => current.map((d) => (d.id === dialog.targetId ? updated : d)))
+        const logged = await recordAdminAction({
+          admin_id: user!.id,
+          admin_email: user!.email,
+          action: dialog.kind,
+          target_id: dialog.targetId,
+          target_label: dialog.targetLabel,
+          reason: note || 'Approved without additional note',
+        })
+        setActions((current) => [logged, ...current])
+        setNotice(`Donation ${dialog.kind === 'approve' ? 'approved' : 'rejected'} and logged.`)
+      }
+      setDialog(null)
+      setReason('')
+    } catch {
+      setError('Could not record this action.')
+    }
+  }
+
   const kpis = [
     { label: 'Total raised', value: formatMoney(totalRaised), icon: Heart, accent: 'text-brand-600 bg-brand-500/10' },
     { label: 'Recipients', value: String(profiles.length), icon: Users, accent: 'text-sky-600 bg-sky-500/10' },
     { label: 'Donations', value: String(donations.length), icon: Wallet, accent: 'text-emerald-600 bg-emerald-500/10' },
-    { label: 'Payout accounts', value: `${connected}/${profiles.length}`, icon: ShieldCheck, accent: 'text-amber-600 bg-amber-500/10' },
+    { label: 'Awaiting review', value: String(pending), icon: ShieldCheck, accent: 'text-amber-600 bg-amber-500/10' },
   ]
 
   return (
@@ -133,6 +232,7 @@ export function Admin() {
       </div>
 
       {error && <p className="mt-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      {notice && <p className="mt-6 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>}
 
       <section className="card mt-8 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -172,7 +272,7 @@ export function Admin() {
                 {filtered.map((profile) => {
                   const stats = totals.get(profile.id)
                   return (
-                    <tr key={profile.id} className="cursor-pointer transition hover:bg-slate-50" onClick={() => setSelected(profile)}>
+                    <tr key={profile.id} className="cursor-pointer transition hover:bg-slate-50" onClick={() => void openProfile(profile)}>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={profile.full_name} color={profile.avatar_color} size="sm" />
@@ -218,6 +318,7 @@ export function Admin() {
                   <th className="px-5 py-3 font-semibold">Status</th>
                   <th className="px-5 py-3 font-semibold">Date</th>
                   <th className="px-5 py-3 text-right font-semibold">Amount</th>
+                  <th className="px-5 py-3 text-right font-semibold">Decision</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -227,9 +328,25 @@ export function Admin() {
                     <tr key={donation.id}>
                       <td className="px-5 py-3 font-medium">@{recipient?.handle ?? 'deleted'}</td>
                       <td className="px-5 py-3 text-slate-500">{donation.provider}</td>
-                      <td className="px-5 py-3"><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{donation.status}</span></td>
+                      <td className="px-5 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          donation.status === 'pending' ? 'bg-amber-50 text-amber-700'
+                            : donation.status === 'rejected' ? 'bg-rose-50 text-rose-700'
+                              : 'bg-emerald-50 text-emerald-700'
+                        }`}>{donation.status}</span>
+                      </td>
                       <td className="px-5 py-3 text-xs text-slate-500">{timeAgo(donation.created_at)}</td>
                       <td className="px-5 py-3 text-right font-bold">{formatMoney(donation.amount_cents)}</td>
+                      <td className="whitespace-nowrap px-5 py-3 text-right">
+                        {donation.status === 'pending' ? (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => askDecision(donation.id, 'approve')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700">Approve</button>
+                            <button onClick={() => askDecision(donation.id, 'reject')} className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Reject</button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -239,8 +356,43 @@ export function Admin() {
         )}
       </section>
 
+      <section className="card mt-8 overflow-hidden">
+        <div className="border-b border-slate-100 p-5">
+          <h2 className="text-base font-bold">Audit trail</h2>
+          <p className="mt-1 text-xs text-slate-500">Every consultation and decision is recorded with its author and reason.</p>
+        </div>
+        {actions.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-500">No admin actions recorded yet.</p>
+        ) : (
+          <div className="max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">When</th>
+                  <th className="px-5 py-3 font-semibold">Admin</th>
+                  <th className="px-5 py-3 font-semibold">Action</th>
+                  <th className="px-5 py-3 font-semibold">Target</th>
+                  <th className="px-5 py-3 font-semibold">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {actions.map((action) => (
+                  <tr key={action.id}>
+                    <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-500">{timeAgo(action.created_at)}</td>
+                    <td className="px-5 py-3 font-medium">{action.admin_email}</td>
+                    <td className="px-5 py-3"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{action.action}</span></td>
+                    <td className="px-5 py-3 text-slate-600">{action.target_label}</td>
+                    <td className="px-5 py-3 text-xs text-slate-500">{action.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        Prototype gate: access is based on the signed-in e-mail ({ADMIN_EMAIL}). In production, replace this with server-side authorization and Supabase RLS policies.
+        Admin accounts: {ADMIN_EMAILS.join(' · ')}. Full bank numbers and passwords are never stored here — payout details live with the payment provider. In production, replace this gate with server-side authorization and RLS policies.
       </p>
 
       {selected && (
@@ -277,6 +429,15 @@ export function Admin() {
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Story</dt><dd className="mt-1 whitespace-pre-line text-slate-700">{selected.story || '—'}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout method</dt><dd className="mt-1 text-slate-700">{payoutLabel[selected.payout_method]}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payout e-mail</dt><dd className="mt-1 text-slate-700">{selected.payout_email || '—'}</dd></div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full bank details</dt>
+                <dd className="mt-1 text-slate-700">
+                  Held by the payment provider — never stored in GiveFlow.
+                  <button onClick={() => askSensitiveData(selected)} className="mt-2 block rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                    Request details (logged)
+                  </button>
+                </dd>
+              </div>
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">Public page</dt><dd className="mt-1 break-all"><a className="text-brand-600 hover:underline" href={pageUrl(selected.handle)} target="_blank" rel="noreferrer">{pageUrl(selected.handle)}</a></dd></div>
             </dl>
 
@@ -289,6 +450,57 @@ export function Admin() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {dialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/60 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Confirm admin action">
+          <div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-extrabold">
+                  {dialog.kind === 'sensitive' ? 'Request payout details' : dialog.kind === 'approve' ? 'Approve donation' : 'Reject donation'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">{dialog.targetLabel}</p>
+              </div>
+              <button onClick={() => setDialog(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+
+            <label className="label mt-6" htmlFor="adminReason">
+              Reason {dialog.kind === 'approve' ? '(optional)' : '(required)'}
+            </label>
+            <textarea
+              id="adminReason"
+              rows={3}
+              maxLength={280}
+              className="input resize-none"
+              placeholder={
+                dialog.kind === 'sensitive'
+                  ? 'Why do you need full payout details from the payment provider?'
+                  : dialog.kind === 'reject'
+                    ? 'Explain why this donation is being rejected…'
+                    : 'Add a note for the audit trail…'
+              }
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setDialog(null)} className="ghost-btn">Cancel</button>
+              <button
+                onClick={() => void confirmDialog()}
+                className={
+                  dialog.kind === 'reject'
+                    ? 'rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700'
+                    : dialog.kind === 'sensitive'
+                      ? 'rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700'
+                      : 'primary-btn'
+                }
+              >
+                {dialog.kind === 'sensitive' ? 'Log request' : dialog.kind === 'approve' ? 'Confirm approval' : 'Confirm rejection'}
+              </button>
+            </div>
           </div>
         </div>
       )}

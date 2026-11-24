@@ -20,7 +20,18 @@ create table if not exists public.donations (
   recipient_id uuid not null references public.profiles(id) on delete cascade,
   amount_cents integer not null check (amount_cents between 100 and 1000000),
   provider text not null default 'demo' check (provider in ('demo', 'paypal', 'dwolla')),
-  status text not null default 'completed' check (status in ('completed', 'pending', 'failed')),
+  status text not null default 'pending' check (status in ('pending', 'completed', 'rejected', 'failed')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.admin_actions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null,
+  admin_email text not null,
+  action text not null check (action in ('approve', 'reject', 'view_profile', 'request_sensitive_data')),
+  target_id text not null,
+  target_label text not null default '',
+  reason text not null default '',
   created_at timestamptz not null default now()
 );
 
@@ -29,6 +40,7 @@ create index if not exists donations_recipient_created_idx
 
 alter table public.profiles enable row level security;
 alter table public.donations enable row level security;
+alter table public.admin_actions enable row level security;
 
 -- Profiles are public (needed for /u/<handle>) but only the owner can edit.
 drop policy if exists "profiles are public" on public.profiles;
@@ -47,3 +59,14 @@ create policy "donations are public" on public.donations for select using (true)
 
 drop policy if exists "anyone can donate" on public.donations;
 create policy "anyone can donate" on public.donations for insert with check (true);
+
+-- Prototype-only: status changes and audit writes. Lock these down server-side
+-- with an admin-only role before production.
+drop policy if exists "anyone can update donations" on public.donations;
+create policy "anyone can update donations" on public.donations for update using (true) with check (true);
+
+drop policy if exists "audit is readable" on public.admin_actions;
+create policy "audit is readable" on public.admin_actions for select using (true);
+
+drop policy if exists "audit can be written" on public.admin_actions;
+create policy "audit can be written" on public.admin_actions for insert with check (true);

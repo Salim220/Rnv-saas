@@ -1,6 +1,6 @@
 export type PayoutMethod = 'none' | 'paypal' | 'dwolla'
 export type DonationProvider = 'demo' | 'paypal' | 'dwolla'
-export type DonationStatus = 'completed' | 'pending' | 'failed'
+export type DonationStatus = 'pending' | 'completed' | 'rejected' | 'failed'
 
 export interface Profile {
   id: string
@@ -27,6 +27,19 @@ export interface AuthUser {
   id: string
   email: string
   profile: Profile
+}
+
+export type AdminActionType = 'approve' | 'reject' | 'view_profile' | 'request_sensitive_data'
+
+export interface AdminAction {
+  id: string
+  admin_id: string
+  admin_email: string
+  action: AdminActionType
+  target_id: string
+  target_label: string
+  reason: string
+  created_at: string
 }
 
 export interface NewDonation {

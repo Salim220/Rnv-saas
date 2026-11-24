@@ -41,7 +41,7 @@ Les URLs utilisent des hashes (`/#/u/jane`) : c'est volontaire, cela évite les 
 Le site est statique : il ne peut pas envoyer d'e-mail lui-même. Supabase s'en charge.
 
 1. Crée un projet sur [supabase.com](https://supabase.com).
-2. Colle `supabase/schema.sql` dans **SQL Editor** et exécute. Si tu avais déjà appliqué l'ancien schéma (avec donateur), exécute aussi `supabase/migration_anonymous_donations.sql`.
+2. Colle `supabase/schema.sql` dans **SQL Editor** et exécute. Si tu avais déjà appliqué un ancien schéma, exécute aussi `supabase/migration_anonymous_donations.sql` puis `supabase/migration_admin_approval.sql`.
 3. **Authentication → Providers → Email** : active-le.
 4. **Authentication → Email Templates → Magic Link** : utilise ce modèle pour que l'utilisateur reçoive un code à 6 chiffres :
 
@@ -64,17 +64,20 @@ Le site est statique : il ne peut pas envoyer d'e-mail lui-même. Supabase s'en 
 
 ## 4. Console admin
 
-Route : `#/admin`. Accès réservé au compte dont l'e-mail correspond à `VITE_ADMIN_EMAIL` (par défaut `admin@giveflow.local`). Pour le site déployé, ajoute aussi ce secret dans **Settings → Secrets and variables → Actions**.
+Route : `#/admin`. Accès réservé à **deux e-mails exacts** définis dans `VITE_ADMIN_EMAILS` (par défaut `admin@giveflow.local,co-admin@giveflow.local`). Chaque admin a son propre compte OTP — aucun identifiant partagé. Pour le site déployé, ajoute aussi ce secret dans **Settings → Secrets and variables → Actions**.
 
 La console affiche :
 
-- les indicateurs globaux (total levé, bénéficiaires, dons, comptes de payout) ;
+- les indicateurs globaux (total levé, bénéficiaires, dons, dons en attente de revue) ;
 - le tableau de tous les bénéficiaires avec recherche : nom, handle, histoire, méthode et e-mail de payout, total levé, date d'inscription ;
 - une fiche détaillée par personne avec l'historique de ses dons ;
-- le tableau de tous les dons (anonymes) ;
-- l'export CSV des bénéficiaires.
+- le tableau de tous les dons anonymes, avec **approbation / rejet** et motif ;
+- l'export CSV des bénéficiaires ;
+- le **journal d'audit** : chaque consultation de profil, décision et demande de données sensibles est tracée avec l'admin, la date et le motif.
 
-⚠️ `VITE_ADMIN_EMAIL` est public dans le bundle : ce n'est qu'un verrou de prototype. En production, remplace-le par une autorisation côté serveur et des policies RLS dédiées.
+Les nouveaux dons arrivent en statut `pending` et n'entrent dans les totals qu'après approbation.
+
+⚠️ Les numéros de compte complets et les mots de passe ne sont **jamais** stockés ni affichés ici. Les coordonnées bancaires restent chez le PSP ; un bouton « Request details (logged) » enregistre la demande dans le journal d'audit. `VITE_ADMIN_EMAILS` est public dans le bundle : ce n'est qu'un verrou de prototype. En production, remplace-le par une autorisation côté serveur et des policies RLS dédiées.
 
 ## 5. Limites connues / avant production
 
