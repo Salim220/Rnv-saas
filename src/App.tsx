@@ -26,7 +26,7 @@ function SetupRequired() {
         <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Configuration required</p>
         <h1 className="mt-3 text-3xl font-extrabold tracking-tight">GiveFlow is not connected yet.</h1>
         <p className="mt-4 text-sm leading-relaxed text-slate-600">
-          Demo mode has been removed. This site needs a Supabase project for e-mail OTP sign-in,
+          This is the final build: a Supabase project is required for e-mail OTP sign-in,
           donation storage and the admin console.
         </p>
         <ol className="mt-7 space-y-4 text-sm text-slate-600">
