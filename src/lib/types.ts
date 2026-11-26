@@ -15,6 +15,13 @@ export interface Profile {
   created_at: string
 }
 
+// Columns exposed by the public.public_profiles view (no payout e-mail, no
+// payout method): exactly what the public donation page needs.
+export type PublicProfile = Pick<
+  Profile,
+  'id' | 'handle' | 'full_name' | 'headline' | 'story' | 'avatar_color' | 'created_at'
+>
+
 export interface PayoutAccount {
   id: string
   recipient_id: string

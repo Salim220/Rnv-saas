@@ -4,14 +4,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { createDonation, getProfileByHandle } from '../lib/data'
 import { formatMoney } from '../lib/format'
-import type { Profile } from '../lib/types'
+import type { PublicProfile } from '../lib/types'
 
 const PRESETS = [1000, 2500, 5000, 10000]
 
 export function DonatePage() {
   const { handle = '' } = useParams()
   const navigate = useNavigate()
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [amountCents, setAmountCents] = useState<number | 'custom'>(2500)
   const [customAmount, setCustomAmount] = useState('')

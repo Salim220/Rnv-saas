@@ -1,15 +1,17 @@
 -- GiveFlow — run this in the Supabase SQL editor once per project.
--- This is the production schema: real OTP sign-in, anonymous requests,
+-- This is the production schema: real magic-link sign-in, anonymous requests,
 -- manual payout tracking and admin-only bank details.
 
 create extension if not exists "pgcrypto";
 
--- Exactly two admin accounts. Each one signs in with their own OTP e-mail.
+-- Exactly two admin accounts. Each one signs in with their own magic link.
+-- These addresses must match src/lib/admin.ts (VITE_ADMIN_EMAILS), otherwise
+-- the UI lets the admin in but the RLS policies deny every query.
 create table if not exists public.admin_emails (
   email text primary key
 );
 insert into public.admin_emails (email)
-values ('admin@giveflow.local'), ('co-admin@giveflow.local')
+values ('ouorousalim2@gmail.com'), ('co-admin@giveflow.local')
 on conflict do nothing;
 
 -- Security definer so the helper can read admin_emails without recursive RLS.
@@ -22,7 +24,7 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.admin_emails
-    where email = coalesce(auth.jwt() ->> 'email', '')
+    where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
   );
 $$;
 grant execute on function public.is_admin() to anon, authenticated;
@@ -85,9 +87,12 @@ alter table public.payout_accounts enable row level security;
 alter table public.admin_actions enable row level security;
 alter table public.admin_emails enable row level security;
 
--- Public profiles are needed for /u/<handle>; only the owner can edit.
+-- The private profile row (it holds the payout contact e-mail) is readable
+-- only by its owner and the admins; donors read the public view below.
 drop policy if exists "profiles are public" on public.profiles;
-create policy "profiles are public" on public.profiles for select using (true);
+drop policy if exists "owner or admin reads profile" on public.profiles;
+create policy "owner or admin reads profile" on public.profiles
+  for select using (auth.uid() = id or public.is_admin());
 
 drop policy if exists "owner inserts profile" on public.profiles;
 create policy "owner inserts profile" on public.profiles for insert with check (auth.uid() = id);
@@ -128,14 +133,22 @@ create policy "admin reads audit" on public.admin_actions
 
 drop policy if exists "admin writes audit" on public.admin_actions;
 create policy "admin writes audit" on public.admin_actions
-  for insert with check (public.is_admin() and admin_email = coalesce(auth.jwt() ->> 'email', ''));
+  for insert with check (public.is_admin() and lower(admin_email) = lower(coalesce(auth.jwt() ->> 'email', '')));
 
 drop policy if exists "admin reads own email" on public.admin_emails;
 create policy "admin reads own email" on public.admin_emails
-  for select using (email = coalesce(auth.jwt() ->> 'email', ''));
+  for select using (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')));
+
+-- Public projection of profiles used by /u/<handle>. The view is owned by the
+-- database owner, so it exposes these columns only and never payout_email.
+create or replace view public.public_profiles as
+  select id, handle, full_name, headline, story, avatar_color, created_at
+  from public.profiles;
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles to anon, authenticated;
+revoke select on public.profiles from anon;
+grant select, insert, update on public.profiles to authenticated;
+grant select on public.public_profiles to anon, authenticated;
 grant select, insert on public.donations to anon, authenticated;
 grant update on public.donations to authenticated;
 grant select on public.payout_accounts to authenticated;

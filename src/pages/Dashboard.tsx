@@ -113,7 +113,7 @@ export function Dashboard() {
   if (loading) {
     return <div className="mx-auto max-w-6xl px-5 py-24 text-center text-sm text-slate-500">Loading…</div>
   }
-  if (!user) return <Navigate to="/signin" replace />
+  if (!user) return <Navigate to="/signin" replace state={{ from: 'dashboard' }} />
 
   const counted = donations.filter((d) => d.status === 'completed' || d.status === 'paid')
   const total = counted.reduce((sum, d) => sum + d.amount_cents, 0)

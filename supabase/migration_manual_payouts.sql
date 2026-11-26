@@ -1,6 +1,7 @@
 -- Run this in the Supabase SQL editor if you already applied an older schema.
--- Final version: removes PayPal/Dwolla, stores full bank coordinates for manual
--- transfers, adds the paid status and replaces prototype RLS with admin-only RLS.
+-- Final version: removes online payment providers, stores full bank coordinates
+-- for manual transfers, adds the paid status and replaces the permissive RLS
+-- with admin-only RLS.
 
 create extension if not exists "pgcrypto";
 
@@ -9,7 +10,7 @@ create table if not exists public.admin_emails (
   email text primary key
 );
 insert into public.admin_emails (email)
-values ('admin@giveflow.local'), ('co-admin@giveflow.local')
+values ('ouorousalim2@gmail.com'), ('co-admin@giveflow.local')
 on conflict do nothing;
 
 create or replace function public.is_admin()
@@ -21,7 +22,7 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.admin_emails
-    where email = coalesce(auth.jwt() ->> 'email', '')
+    where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
   );
 $$;
 grant execute on function public.is_admin() to anon, authenticated;
@@ -115,15 +116,27 @@ create policy "admin reads audit" on public.admin_actions
 
 drop policy if exists "admin writes audit" on public.admin_actions;
 create policy "admin writes audit" on public.admin_actions
-  for insert with check (public.is_admin() and admin_email = coalesce(auth.jwt() ->> 'email', ''));
+  for insert with check (public.is_admin() and lower(admin_email) = lower(coalesce(auth.jwt() ->> 'email', '')));
 
 alter table public.admin_emails enable row level security;
 drop policy if exists "admin reads own email" on public.admin_emails;
 create policy "admin reads own email" on public.admin_emails
-  for select using (email = coalesce(auth.jwt() ->> 'email', ''));
+  for select using (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')));
+
+-- Private profiles: only the owner and the admins read the row (payout e-mail).
+drop policy if exists "profiles are public" on public.profiles;
+drop policy if exists "owner or admin reads profile" on public.profiles;
+create policy "owner or admin reads profile" on public.profiles
+  for select using (auth.uid() = id or public.is_admin());
+
+create or replace view public.public_profiles as
+  select id, handle, full_name, headline, story, avatar_color, created_at
+  from public.profiles;
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles to anon, authenticated;
+revoke select on public.profiles from anon;
+grant select, insert, update on public.profiles to authenticated;
+grant select on public.public_profiles to anon, authenticated;
 grant select, insert on public.donations to anon, authenticated;
 grant update on public.donations to authenticated;
 grant select on public.payout_accounts to authenticated;

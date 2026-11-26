@@ -7,6 +7,7 @@ import type {
   NewDonation,
   PayoutAccount,
   Profile,
+  PublicProfile,
 } from './types'
 
 function db() {
@@ -39,8 +40,9 @@ async function uniqueHandle(base: string, exceptId?: string): Promise<string> {
   let candidate = base
   let n = 2
   for (;;) {
+    // The public view is readable by everyone, unlike the private profiles row.
     const { data } = await client
-      .from('profiles')
+      .from('public_profiles')
       .select('id')
       .eq('handle', candidate)
       .maybeSingle()
@@ -121,14 +123,14 @@ export function subscribeAuth(callback: () => void): () => void {
   return () => data.subscription.unsubscribe()
 }
 
-export async function getProfileByHandle(handle: string): Promise<Profile | null> {
+export async function getProfileByHandle(handle: string): Promise<PublicProfile | null> {
   const { data, error } = await db()
-    .from('profiles')
-    .select('*')
+    .from('public_profiles')
+    .select('id, handle, full_name, headline, story, avatar_color, created_at')
     .eq('handle', handle.toLowerCase())
     .maybeSingle()
   if (error) throw error
-  return (data as Profile) ?? null
+  return (data as PublicProfile) ?? null
 }
 
 export async function updateProfile(

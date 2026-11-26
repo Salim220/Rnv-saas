@@ -41,16 +41,30 @@ export function Admin() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
+    // These tables are admin-only: querying them before the session is restored
+    // returns a permission error and leaves the console empty for good.
+    if (!user || !isAdminEmail(user.email)) return
+    let alive = true
+    setLoading(true)
+    setError('')
     Promise.all([getAllProfiles(), getAllDonations(), getPayoutAccounts(), getAdminActions()])
       .then(([allProfiles, allDonations, allAccounts, allActions]) => {
+        if (!alive) return
         setProfiles(allProfiles)
         setDonations(allDonations)
         setPayoutAccounts(allAccounts)
         setActions(allActions)
       })
-      .catch(() => setError('Could not load admin data.'))
-      .finally(() => setLoading(false))
-  }, [])
+      .catch(() => {
+        if (alive) setError('Could not load admin data. Check that this e-mail is listed in public.admin_emails (RLS).')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [user?.id, user?.email])
 
   const totals = useMemo(() => {
     const map = new Map<string, { total: number; count: number }>()
@@ -81,7 +95,7 @@ export function Admin() {
   if (userLoading) {
     return <div className="mx-auto max-w-6xl px-5 py-24 text-center text-sm text-slate-500">Loading…</div>
   }
-  if (!user) return <Navigate to="/signin" replace />
+  if (!user) return <Navigate to="/signin" replace state={{ from: 'admin' }} />
 
   if (!isAdminEmail(user.email)) {
     return (

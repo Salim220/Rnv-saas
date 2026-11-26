@@ -1,11 +1,17 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Mail, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useUser } from '../hooks/useUser'
 import { sendMagicLink } from '../lib/data'
 
 export function SignIn() {
   const { user } = useUser()
+  const location = useLocation()
+  // Set by /dashboard and /admin when they bounce a signed-out visitor here,
+  // so the page can say what the link was for and send them back afterwards.
+  const from = (location.state as { from?: string } | null)?.from
+  const target = from === 'admin' ? '/admin' : '/dashboard'
+  const targetLabel = from === 'admin' ? 'Go to admin console' : 'Go to dashboard'
   const [step, setStep] = useState<'email' | 'sent'>('email')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -32,8 +38,8 @@ export function SignIn() {
           <CheckCircle2 className="mx-auto text-emerald-500" size={44} />
           <h1 className="mt-5 text-2xl font-extrabold">You&apos;re signed in</h1>
           <p className="mt-2 text-sm text-slate-500">Signed in as {user.email}</p>
-          <Link to="/dashboard" className="primary-btn mt-8 w-full">
-            Go to dashboard <ArrowRight size={16} />
+          <Link to={target} className="primary-btn mt-8 w-full">
+            {targetLabel} <ArrowRight size={16} />
           </Link>
         </div>
       </div>
@@ -60,6 +66,11 @@ export function SignIn() {
         <div className="p-8">
           {step === 'email' ? (
             <form onSubmit={handleSend}>
+              {from && (
+                <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  Sign in to open the {from === 'admin' ? 'admin console' : 'dashboard'}.
+                </p>
+              )}
               <label className="label" htmlFor="email">E-mail address</label>
               <input
                 id="email"

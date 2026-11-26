@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
-import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { HashRouter, Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { useUser } from './hooks/useUser'
-import { isSupabaseConfigured } from './lib/supabase'
+import { isAuthCallback, isSupabaseConfigured } from './lib/supabase'
 import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { DonatePage } from './pages/DonatePage'
@@ -16,7 +16,7 @@ function NotFound() {
       <p className="text-6xl font-black text-slate-200">404</p>
       <h1 className="mt-4 text-2xl font-bold">This page doesn't exist</h1>
       <p className="mt-2 text-slate-500">Check the link, or head back to the homepage.</p>
-      <a className="primary-btn mt-8" href="#/">Back to GiveFlow</a>
+      <Link to="/" className="primary-btn mt-8">Back to GiveFlow</Link>
     </div>
   )
 }
@@ -26,13 +26,10 @@ function MagicLinkRedirect() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!user) return
-    const hash = window.location.hash
-    // After clicking the e-mail link Supabase lands on the bare URL; send
-    // the user to their dashboard instead of leaving them on the landing page.
-    if (!hash || hash === '#' || hash.startsWith('#/signin')) {
-      navigate('/dashboard', { replace: true })
-    }
+    // Only redirect pages opened from a sign-in link. A signed-in visitor
+    // browsing back to the landing page stays where they are.
+    if (!user || !isAuthCallback) return
+    navigate('/dashboard', { replace: true })
   }, [user, navigate])
 
   return null
@@ -45,7 +42,7 @@ function SetupRequired() {
         <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Configuration required</p>
         <h1 className="mt-3 text-3xl font-extrabold tracking-tight">GiveFlow is not connected yet.</h1>
         <p className="mt-4 text-sm leading-relaxed text-slate-600">
-          This is the final build: a Supabase project is required for e-mail OTP sign-in,
+          This is the final build: a Supabase project is required for e-mail sign-in,
           donation storage and the admin console.
         </p>
         <ol className="mt-7 space-y-4 text-sm text-slate-600">
