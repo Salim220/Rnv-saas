@@ -478,7 +478,7 @@ export function Admin() {
       </section>
 
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        Admin accounts: {ADMIN_EMAILS.join(' · ')}. Bank details are stored in Supabase and readable only by these two accounts through RLS policies. No password is ever stored. Keep the exported JSON file secure.
+        Admin accounts: {ADMIN_EMAILS.join(' · ')}. Bank details are stored in Supabase and readable only by their owner and these two accounts through RLS policies. No password is ever stored. Keep the exported JSON file secure.
       </p>
 
       {selected && (

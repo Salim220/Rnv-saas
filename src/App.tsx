@@ -7,6 +7,7 @@ import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { DonatePage } from './pages/DonatePage'
 import { Landing } from './pages/Landing'
+import { Privacy, Terms } from './pages/Legal'
 import { SignIn } from './pages/SignIn'
 import { ThankYou } from './pages/ThankYou'
 
@@ -72,6 +73,8 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/u/:handle" element={<DonatePage />} />
           <Route path="/thank-you" element={<ThankYou />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/404" element={<NotFound />} />
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Route>

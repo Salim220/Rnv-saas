@@ -64,8 +64,16 @@ export function Layout() {
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} />
-            Bank details are visible only in the admin console.
+            Bank details are private to their owner and the two administrators.
           </div>
+        </div>
+
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 border-t border-slate-100 px-5 py-5 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} GiveFlow. Support requests are reviewed and paid out manually.</p>
+          <nav className="flex items-center gap-5 font-semibold" aria-label="Legal">
+            <Link to="/terms" className="hover:text-ink-950">Terms of use</Link>
+            <Link to="/privacy" className="hover:text-ink-950">Privacy</Link>
+          </nav>
         </div>
       </footer>
     </div>

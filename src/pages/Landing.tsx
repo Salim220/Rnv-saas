@@ -86,7 +86,7 @@ export function Landing() {
               </button>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-slate-400">
-              <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-500" /> Bank details visible only to admins</span>
+              <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-500" /> Bank details visible only to you and admins</span>
               <span className="flex items-center gap-2"><Heart size={16} className="text-brand-500" /> Passwordless e-mail sign-in</span>
             </div>
           </div>

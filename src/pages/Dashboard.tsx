@@ -281,7 +281,7 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Landmark size={18} className="text-brand-600" />
-                <h2 className="text-base font-bold">Bank details (visible to admins)</h2>
+                <h2 className="text-base font-bold">Bank details (private)</h2>
               </div>
               {payoutSaved && <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600"><Check size={14} /> Saved</span>}
             </div>

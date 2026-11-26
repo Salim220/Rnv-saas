@@ -106,7 +106,7 @@ export function SignIn() {
 
           <div className="mt-8 flex items-start gap-2 border-t border-slate-100 pt-6 text-xs leading-relaxed text-slate-400">
             <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-            <span>Your payout details are only visible to the two administrators. No password is ever requested.</span>
+            <span>Your payout details are visible only to you and the two administrators. No password is ever requested.</span>
           </div>
         </div>
       </div>

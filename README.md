@@ -52,6 +52,8 @@ git push origin main
 | Console admin | `#/admin` |
 | Page publique d'un receveur | `#/u/<handle>` |
 | Confirmation après demande | `#/thank-you` |
+| Conditions d'utilisation | `#/terms` |
+| Confidentialité | `#/privacy` |
 
 1. Le receveur saisit son e-mail, clique sur le lien reçu et complète sa page.
 2. Il renseigne ses **coordonnées bancaires** (titulaire, banque, routing number, numéro de compte, type) dans `#/dashboard`. Elles sont enregistrées dans `payout_accounts`.
@@ -91,7 +93,7 @@ Les dons arrivent en `pending` et n'entrent dans les totaux qu'après approbatio
 | Coordonnées bancaires | ✅ visibles admin | Chiffrer/auditer selon tes obligations ; aucun mot de passe stocké |
 | Profil public | ✅ vue `public_profiles` | Le public ne lit que les colonnes de la page de don, jamais `payout_email` |
 | Fiscalité | ⚠️ | Un don à un particulier **n'est pas déductible** aux États-Unis |
-| Conformité | ⚠️ | Conditions d'utilisation, confidentialité et lutte contre la fraude à prévoir |
+| Conformité | ✅ | Conditions d'utilisation et confidentialité publiées dans le footer (`#/terms`, `#/privacy`) ; la lutte contre la fraude reste manuelle côté admin |
 
 ## Stack
 
